@@ -18,6 +18,34 @@ const (
 	GenericError            ErrorType = "GenericError"
 )
 
+var allErrorTypes = []ErrorType{
+	CommandNotFound,
+	FileNotFoundOrDirectory,
+	PermissionDenied,
+	CannotExecute,
+	InvalidArgumentOrOption,
+	ResourceExists,
+	NotADirectory,
+	TerminatedBySignal,
+	GenericError,
+}
+
+// AllErrorTypes returns a copy of supported error categories for hook triggers.
+func AllErrorTypes() []ErrorType {
+	result := make([]ErrorType, len(allErrorTypes))
+	copy(result, allErrorTypes)
+	return result
+}
+
+// AllErrorTypeStrings exposes supported error categories in string form.
+func AllErrorTypeStrings() []string {
+	result := make([]string, len(allErrorTypes))
+	for i, errType := range allErrorTypes {
+		result[i] = string(errType)
+	}
+	return result
+}
+
 // Classifier analyzes command output to determine the error type.
 type Classifier struct{}
 

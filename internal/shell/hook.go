@@ -9,6 +9,11 @@ import (
 	"strings"
 )
 
+const (
+	hookStartMarker = "# AISH (AI Shell) Hook - Start"
+	hookEndMarker   = "# AISH (AI Shell) Hook - End"
+)
+
 // InstallHook installs the shell hook for the current OS.
 func InstallHook() error {
 	home, err := os.UserHomeDir()
@@ -17,7 +22,7 @@ func InstallHook() error {
 	}
 
 	if runtime.GOOS == "windows" {
-		return installWindowsHook(home)
+		return installWindowsHook()
 	}
 
 	if err != nil {
@@ -69,7 +74,7 @@ func UninstallHook() (bool, error) {
 	}
 
 	if runtime.GOOS == "windows" {
-		return removeWindowsHook(home)
+		return removeWindowsHook()
 	}
 	if err != nil {
 		return false, fmt.Errorf("failed to get user home directory: %w", err)
@@ -299,10 +304,10 @@ func addHookToFile(filePath, hookCode string) error {
 	contentStr := string(content)
 
 	// Check if hook is already installed
-	if strings.Contains(contentStr, "# AISH (AI Shell) Hook - Start") {
+	if strings.Contains(contentStr, hookStartMarker) {
 		// Replace existing hook block to keep it up to date
-		startMarker := "# AISH (AI Shell) Hook - Start"
-		endMarker := "# AISH (AI Shell) Hook - End"
+		startMarker := hookStartMarker
+		endMarker := hookEndMarker
 		startIndex := strings.Index(contentStr, startMarker)
 		endIndex := strings.Index(contentStr, endMarker)
 		if startIndex != -1 && endIndex != -1 {
@@ -340,8 +345,8 @@ func removeHookFromFile(filePath string) (bool, error) {
 	contentStr := string(content)
 
 	// Check if hook exists
-	startMarker := "# AISH (AI Shell) Hook - Start"
-	endMarker := "# AISH (AI Shell) Hook - End"
+	startMarker := hookStartMarker
+	endMarker := hookEndMarker
 
 	startIndex := strings.Index(contentStr, startMarker)
 	if startIndex == -1 {
@@ -427,18 +432,10 @@ if ((Get-Command "prompt" -CommandType Function).ScriptBlock.ToString() -notmatc
 }
 
 // installWindowsHook installs the hook for PowerShell.
-func installWindowsHook(home string) error {
-	// In PowerShell, the profile path is determined by the $PROFILE variable.
-	// We can run a PowerShell command to get this path.
-	cmd := exec.Command("powershell", "-Command", "echo $PROFILE")
-	out, err := cmd.Output()
+func installWindowsHook() error {
+	profilePath, err := resolvePowerShellProfilePath()
 	if err != nil {
-		return fmt.Errorf("failed to get PowerShell profile path: %w", err)
-	}
-	profilePath := strings.TrimSpace(string(out))
-
-	if profilePath == "" {
-		return fmt.Errorf("PowerShell profile path is empty; cannot install hook")
+		return err
 	}
 
 	// Ensure the directory for the profile exists.
@@ -452,18 +449,12 @@ func installWindowsHook(home string) error {
 }
 
 // removeWindowsHook removes the hook from PowerShell profile.
-func removeWindowsHook(home string) (bool, error) {
-	cmd := exec.Command("powershell", "-Command", "echo $PROFILE")
-	out, err := cmd.Output()
+func removeWindowsHook() (bool, error) {
+	profilePath, err := resolvePowerShellProfilePath()
 	if err != nil {
 		// If PowerShell isn't installed or fails, we can't determine the path.
 		// We'll consider the hook not installed.
 		return false, nil
-	}
-	profilePath := strings.TrimSpace(string(out))
-
-	if profilePath == "" {
-		return false, nil // No profile, no hook.
 	}
 
 	return removeHookFromFile(profilePath)
@@ -480,4 +471,77 @@ func copyFile(src, dst string) error {
 		cmd = exec.Command("cp", src, dst)
 	}
 	return cmd.Run()
+}
+
+// GetHookFilePath returns the path to the hook file.
+func GetHookFilePath() (string, error) {
+	if runtime.GOOS == "windows" {
+		return resolvePowerShellProfilePath()
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+
+	hookCandidates := []string{
+		filepath.Join(home, ".zshrc"),
+		filepath.Join(home, ".bashrc"),
+		filepath.Join(home, ".bash_profile"),
+	}
+	for _, candidate := range hookCandidates {
+		if fileContainsHook(candidate) {
+			return candidate, nil
+		}
+	}
+
+	shell := os.Getenv("SHELL")
+	switch {
+	case strings.Contains(shell, "zsh"):
+		return filepath.Join(home, ".zshrc"), nil
+	case strings.Contains(shell, "bash"):
+		bashrc := filepath.Join(home, ".bashrc")
+		bashProfile := filepath.Join(home, ".bash_profile")
+		if fileExists(bashrc) || !fileExists(bashProfile) {
+			return bashrc, nil
+		}
+		return bashProfile, nil
+	default:
+		if fileExists(filepath.Join(home, ".zshrc")) {
+			return filepath.Join(home, ".zshrc"), nil
+		}
+		return filepath.Join(home, ".bashrc"), nil
+	}
+}
+
+func fileContainsHook(path string) bool {
+	if path == "" {
+		return false
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(content), hookStartMarker)
+}
+
+func fileExists(path string) bool {
+	if path == "" {
+		return false
+	}
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func resolvePowerShellProfilePath() (string, error) {
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", "echo $PROFILE")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get PowerShell profile path: %w", err)
+	}
+	profilePath := strings.TrimSpace(string(out))
+	if profilePath == "" {
+		return "", fmt.Errorf("PowerShell profile path is empty; cannot locate hook")
+	}
+	return profilePath, nil
 }

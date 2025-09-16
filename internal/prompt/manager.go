@@ -30,8 +30,8 @@ func NewManager(path string) (*Manager, error) {
 func NewDefaultManager() *Manager {
 	defaultPrompts := map[string]map[string]string{
 		"generate_command": {
-			"en":    "You are a shell command generator for macOS. Output ONLY a single-line JSON object with the exact schema: {\"command\":\"<shell>\"}. No prose, no markdown, no extra keys. Use a safe, single command.\nPrompt: {{.Prompt}}\nJSON:",
-			"zh-TW": "你是 macOS 的指令產生器。僅輸出一行 JSON，結構嚴格為：{\"command\":\"<shell>\"}。不要輸出說明、Markdown 或多餘鍵。請產生安全且可執行的單一指令。\n提示：{{.Prompt}}\nJSON：",
+			"en":    "You are a shell command generator for macOS. Output ONLY a single-line JSON object with the exact schema: {\"command\":\"<shell>\"}. No prose, no markdown, no extra keys. Use a safe, single command. The command should be directly usable, not like `ls -a \"<path_to_directory_or_file>\"`.\nPrompt: {{.Prompt}}\nJSON:",
+			"zh-TW": "你是 macOS 的指令產生器。僅輸出一行 JSON，結構嚴格為：{\"command\":\"<shell>\"}。不要輸出說明、Markdown 或多餘鍵。請產生安全且可執行的單一指令，指令需可直接使用，避免產生如 `ls -a \"<path_to_directory_or_file>\"` 的佔位符。\n提示：{{.Prompt}}\nJSON：",
 		},
 		"get_suggestion": {
 			"en":    "You are a shell debugging assistant on macOS. Output ONLY one JSON object with schema: {\"explanation\":\"...\",\"command\":\"<shell>\"}. Do not include markdown or extra keys.\nCommand: {{.Command}}\nExit Code: {{.ExitCode}}\nStdout:\n{{.Stdout}}\nStderr:\n{{.Stderr}}\nJSON:",

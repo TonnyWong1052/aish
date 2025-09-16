@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+
+	"powerful-cli/internal/classification"
 )
 
 // ProviderConfig stores the configuration for a single LLM provider.
@@ -84,18 +86,9 @@ func newDefaultConfig() *Config {
 			"gemini-cli": {APIEndpoint: "https://cloudcode-pa.googleapis.com/v1internal:generateContent", Project: "YOUR_GEMINI_PROJECT_ID", Model: "gemini-2.5-flash"},
 		},
 		UserPreferences: UserPreferences{
-			Language: "en",
-			EnabledLLMTriggers: []string{
-				"CommandNotFound",
-				"FileNotFoundOrDirectory",
-				"PermissionDenied",
-				"CannotExecute",
-				"InvalidArgumentOrOption",
-				"ResourceExists",
-				"NotADirectory",
-				"GenericError",
-			},
-			AutoExecute: false, // Default to false, require user to enable manually
+			Language:           "en",
+			EnabledLLMTriggers: classification.AllErrorTypeStrings(),
+			AutoExecute:        false, // Default to false, require user to enable manually
 			Context: ContextConfig{
 				MaxHistoryEntries:  10,
 				IncludeDirectories: true,

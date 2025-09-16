@@ -3,6 +3,7 @@ package auth
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,11 +22,6 @@ import (
 
 // Google OAuth 公開客戶端（用於桌面/本地應用）－固定值
 // 注意：此 client_id 與 client_secret 為公開客戶端用途，非用戶個人密鑰。
-const (
-	fixedClientID     = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
-	fixedClientSecret = "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"
-)
-
 // OAuthCredentials represents the minimal structure we need from oauth_creds.json
 type OAuthCredentials struct {
 	ExpiryDate   int64  `json:"expiry_date"` // 毫秒
@@ -194,22 +190,33 @@ func httpRefreshToken(credsPath string) error {
 	if tokenURL == "" {
 		tokenURL = "https://oauth2.googleapis.com/token"
 	}
-	// 強制使用固定的 client_id 與 client_secret（依使用者要求）
-	clientID := fixedClientID
-	clientSecret := fixedClientSecret
+
+	clientID, clientSecret, err := resolveClientCredentials(credsPath, raw)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(clientID) == "" {
+		return errors.New("unable to resolve OAuth client_id; configure GOOGLE_OAUTH_CLIENT_ID or ensure oauth_creds.json contains id_token")
+	}
+	if clientSecret == "" {
+		return errors.New("client_secret not configured for this OAuth client. Provide GOOGLE_OAUTH_CLIENT_SECRET or ~/.gemini/oauth_client.json, or refresh via gemini-cli.")
+	}
 
 	httpClient := &http.Client{Timeout: 20 * time.Second}
 
 	// 先嘗試符合用戶提供樣例的 JSON 請求體
 	jsonBody := map[string]any{
 		"client_id":     clientID,
-		"client_secret": clientSecret,
 		"refresh_token": refresh,
 		"grant_type":    "refresh_token",
+	}
+	if clientSecret != "" {
+		jsonBody["client_secret"] = clientSecret
 	}
 	jb, _ := json.Marshal(jsonBody)
 	req, _ := http.NewRequest("POST", tokenURL, bytes.NewReader(jb))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", "aish-gemini-refresh/1.0")
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
@@ -223,9 +230,12 @@ func httpRefreshToken(credsPath string) error {
 		form.Set("grant_type", "refresh_token")
 		form.Set("refresh_token", refresh)
 		form.Set("client_id", clientID)
-		form.Set("client_secret", clientSecret)
+		if clientSecret != "" {
+			form.Set("client_secret", clientSecret)
+		}
 		req2, _ := http.NewRequest("POST", tokenURL, strings.NewReader(form.Encode()))
 		req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		req2.Header.Set("User-Agent", "aish-gemini-refresh/1.0")
 		resp2, err2 := httpClient.Do(req2)
 		if err2 != nil {
 			return err2
@@ -233,7 +243,7 @@ func httpRefreshToken(credsPath string) error {
 		body, _ = io.ReadAll(resp2.Body)
 		_ = resp2.Body.Close()
 		if resp2.StatusCode < 200 || resp2.StatusCode >= 300 {
-			return fmt.Errorf("token endpoint %s returned %d: %s", tokenURL, resp2.StatusCode, string(body))
+			return formatTokenEndpointError(resp2.StatusCode, body)
 		}
 	}
 
@@ -245,6 +255,18 @@ func httpRefreshToken(credsPath string) error {
 	access := strings.TrimSpace(getString(res, "access_token"))
 	if access == "" {
 		return errors.New("empty access_token in token response")
+	}
+	if newRefresh := strings.TrimSpace(getString(res, "refresh_token")); newRefresh != "" {
+		refresh = newRefresh
+	}
+	if scope := strings.TrimSpace(getString(res, "scope")); scope != "" {
+		raw["scope"] = scope
+	}
+	if tokenType := strings.TrimSpace(getString(res, "token_type")); tokenType != "" {
+		raw["token_type"] = tokenType
+	}
+	if idToken := strings.TrimSpace(getString(res, "id_token")); idToken != "" {
+		raw["id_token"] = idToken
 	}
 
 	// 計算 expiry_date（毫秒），比實際過期時間提前 60 秒
@@ -269,6 +291,10 @@ func httpRefreshToken(credsPath string) error {
 	raw["access_token"] = access
 	raw["refresh_token"] = refresh
 	raw["expiry_date"] = expiryDate
+	raw["client_id"] = clientID
+	if clientSecret != "" {
+		raw["client_secret"] = clientSecret
+	}
 	delete(raw, "expires_in")
 	if data, err := json.MarshalIndent(raw, "", "  "); err == nil {
 		if err := os.WriteFile(credsPath, data, 0o600); err != nil {
@@ -277,6 +303,162 @@ func httpRefreshToken(credsPath string) error {
 	}
 	fmt.Fprintln(os.Stderr, "auth: Token refreshed via HTTP (json-compatible format)")
 	return nil
+}
+
+func resolveClientCredentials(credsPath string, raw map[string]any) (string, string, error) {
+	dir := filepath.Dir(credsPath)
+	candidateIDs := []string{strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_ID"))}
+	candidateSecrets := []string{strings.TrimSpace(os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET"))}
+
+	if dir != "" {
+		if id, secret, err := readOAuthClientConfig(dir); err != nil {
+			return "", "", err
+		} else {
+			if id != "" {
+				candidateIDs = append(candidateIDs, id)
+			}
+			if secret != "" {
+				candidateSecrets = append(candidateSecrets, secret)
+			}
+		}
+	}
+
+	for _, key := range []string{"client_id", "clientId"} {
+		if v := strings.TrimSpace(getString(raw, key)); v != "" {
+			candidateIDs = append(candidateIDs, v)
+			break
+		}
+	}
+	for _, key := range []string{"client_secret", "clientSecret"} {
+		if v := strings.TrimSpace(getString(raw, key)); v != "" {
+			candidateSecrets = append(candidateSecrets, v)
+			break
+		}
+	}
+
+	var clientID string
+	for _, v := range candidateIDs {
+		if v != "" {
+			clientID = v
+			break
+		}
+	}
+
+	var clientSecret string
+	for _, v := range candidateSecrets {
+		if v != "" {
+			clientSecret = v
+			break
+		}
+	}
+
+	if clientID == "" {
+		if idToken := strings.TrimSpace(getString(raw, "id_token")); idToken != "" {
+			if inferred, err := inferClientIDFromIDToken(idToken); err == nil && inferred != "" {
+				clientID = inferred
+			}
+		}
+	}
+
+	return clientID, clientSecret, nil
+}
+
+func formatTokenEndpointError(status int, body []byte) error {
+	trimmed := strings.TrimSpace(string(body))
+	if trimmed == "" {
+		trimmed = "(empty body)"
+	}
+
+	var errObj struct {
+		Error            string `json:"error"`
+		ErrorDescription string `json:"error_description"`
+	}
+	if json.Unmarshal(body, &errObj) == nil {
+		desc := strings.TrimSpace(errObj.ErrorDescription)
+		if desc == "" {
+			desc = strings.TrimSpace(errObj.Error)
+		}
+		lower := strings.ToLower(desc)
+		if strings.Contains(lower, "client_secret") && strings.Contains(lower, "missing") {
+			return fmt.Errorf("token refresh failed: HTTP %d - %s. This OAuth client requires a client_secret to refresh tokens. Provide GOOGLE_OAUTH_CLIENT_SECRET or ~/.gemini/oauth_client.json, or refresh via gemini-cli.", status, desc)
+		}
+		if errObj.Error == "invalid_client" || strings.Contains(lower, "invalid client") {
+			return fmt.Errorf("token refresh failed: HTTP %d - %s. The client_id may be incorrect for this refresh_token.", status, desc)
+		}
+		if desc != "" {
+			return fmt.Errorf("token refresh failed: HTTP %d - %s", status, desc)
+		}
+	}
+
+	return fmt.Errorf("token refresh failed: HTTP %d - %s", status, trimmed)
+}
+
+func readOAuthClientConfig(dir string) (string, string, error) {
+	path := filepath.Join(dir, "oauth_client.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return "", "", nil
+		}
+		return "", "", fmt.Errorf("failed to read %s: %w", path, err)
+	}
+
+	cfg := map[string]any{}
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return "", "", fmt.Errorf("failed to parse %s: %w", path, err)
+	}
+
+	id := strings.TrimSpace(getString(cfg, "client_id"))
+	if id == "" {
+		id = strings.TrimSpace(getString(cfg, "clientId"))
+	}
+	secret := strings.TrimSpace(getString(cfg, "client_secret"))
+	if secret == "" {
+		secret = strings.TrimSpace(getString(cfg, "clientSecret"))
+	}
+
+	return id, secret, nil
+}
+
+func inferClientIDFromIDToken(idToken string) (string, error) {
+	parts := strings.Split(idToken, ".")
+	if len(parts) < 2 {
+		return "", errors.New("invalid id_token format")
+	}
+
+	payload, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return "", fmt.Errorf("failed to decode id_token payload: %w", err)
+	}
+
+	claims := map[string]any{}
+	if err := json.Unmarshal(payload, &claims); err != nil {
+		return "", fmt.Errorf("failed to parse id_token payload: %w", err)
+	}
+
+	if azp, ok := claims["azp"].(string); ok {
+		if s := strings.TrimSpace(azp); s != "" {
+			return s, nil
+		}
+	}
+
+	switch aud := claims["aud"].(type) {
+	case string:
+		if s := strings.TrimSpace(aud); s != "" {
+			return s, nil
+		}
+	case []any:
+		for _, v := range aud {
+			if s, ok := v.(string); ok {
+				s = strings.TrimSpace(s)
+				if s != "" {
+					return s, nil
+				}
+			}
+		}
+	}
+
+	return "", nil
 }
 
 // getString 從 map 取得字串欄位
