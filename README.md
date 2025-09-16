@@ -4,6 +4,8 @@
 
 A powerful command-line tool that integrates with Google Gemini AI to provide intelligent terminal assistance. AISH automatically captures command errors, analyzes them with AI, and offers smart suggestions and corrections.
 
+> Latest stable release: **v0.0.1**
+
 ![AISH Demo](./demo/demo.gif)
 
 ## Core Features
@@ -16,9 +18,19 @@ A powerful command-line tool that integrates with Google Gemini AI to provide in
 
 ## Installation
 
-There are two ways to install AISH: using the installation script or building from the source manually.
+There are three ways to install AISH: using Homebrew (easiest), using the installation script, or building from the source manually.
 
-### 1. Using the Installation Script (Recommended)
+### 1. Using Homebrew (Easiest)
+
+If you're on macOS or Linux with Homebrew installed:
+
+```bash
+brew install aish
+```
+
+After installation, run `aish init` to set up the shell hook and configure your LLM provider.
+
+### 2. Using the Installation Script (Recommended)
 
 The script will build the binary, install it into `~/bin`, and provide instructions for adding it to your `PATH`.
 
@@ -204,7 +216,7 @@ aish init
 # Enter your OpenAI API key when prompted
 ```
 
-### 2. Manual Installation
+### 3. Manual Installation
 
 If you prefer to build and install manually:
 
@@ -370,8 +382,54 @@ $ aish capture  # AISH's own commands
     ```bash
     aish -p "list all files in the current directory"
     aish -p "find all .go files"
-    ```# aish
-# aish
-# aish
-# aish
-# aish
+    ```
+
+## Configuration
+
+After installation, you need to configure AISH with your preferred LLM provider:
+
+```bash
+# Initialize AISH configuration
+aish init
+```
+
+This will guide you through:
+- Selecting your LLM provider (Gemini CLI, Gemini API, or OpenAI)
+- Setting up API keys (if needed)
+- Installing the shell hook for automatic error capture
+
+## Usage
+
+### Automatic Error Analysis
+Once configured, AISH automatically captures and analyzes command errors:
+
+```bash
+# Make a mistake - AISH will automatically help
+$ ls /nonexistent
+ls: cannot access '/nonexistent': No such file or directory
+
+# AISH automatically provides analysis and suggestions
+```
+
+### Manual Command Generation
+Generate commands from natural language:
+
+```bash
+aish -p "find all .go files in the current directory"
+aish -p "show me the git status in a nice format"
+```
+
+### View History
+Review past error analyses:
+
+```bash
+aish history
+```
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
