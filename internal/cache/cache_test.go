@@ -102,7 +102,7 @@ func TestCacheExpiration(t *testing.T) {
 	key := "expiring-key"
 	value := "expiring-value"
 
-	err = cache.Set(key, value, time.Millisecond)
+	err = cache.Set(key, value, 50*time.Millisecond)
 	if err != nil {
 		t.Fatalf("Failed to set cache: %v", err)
 	}
@@ -114,7 +114,7 @@ func TestCacheExpiration(t *testing.T) {
 	}
 
 	// Wait for expiration
-	time.Sleep(10 * time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
 
 	// Should not be found now
 	_, found = cache.Get(key)

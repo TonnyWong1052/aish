@@ -1,7 +1,7 @@
 package history
 
 import (
-	"encoding/json"
+	"log"
 	"os"
 	"path/filepath"
 	"powerful-cli/internal/classification"
@@ -24,6 +24,15 @@ type History struct {
 	Entries []Entry `json:"entries"`
 }
 
+const defaultMaxHistorySize = 100
+
+func determineHistoryLimit() int {
+	if cfg, err := config.Load(); err == nil && cfg.UserPreferences.MaxHistorySize > 0 {
+		return cfg.UserPreferences.MaxHistorySize
+	}
+	return defaultMaxHistorySize
+}
+
 func getHistoryPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -32,73 +41,41 @@ func getHistoryPath() (string, error) {
 	return filepath.Join(home, ".config", "aish", "history.json"), nil
 }
 
-// Add appends a new entry to the history.
-func (h *History) Save() error {
-	path, err := getHistoryPath()
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(h, "", "  ")
-	if err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0644)
-}
-
 func Add(entry Entry) error {
-	hist, err := Load()
+	mgr, err := getDefaultManager()
 	if err != nil {
 		return err
 	}
-	hist.Entries = append([]Entry{entry}, hist.Entries...) // Prepend to keep it sorted by newest
-	cfg, err := config.Load()
-	if err == nil && cfg.UserPreferences.MaxHistorySize > 0 {
-		if len(hist.Entries) > cfg.UserPreferences.MaxHistorySize {
-			hist.Entries = hist.Entries[:cfg.UserPreferences.MaxHistorySize]
-		}
-	} else {
-		// Fallback to a default limit if config loading fails or size is not set
-		const defaultMaxHistorySize = 100
-		if len(hist.Entries) > defaultMaxHistorySize {
-			hist.Entries = hist.Entries[:defaultMaxHistorySize]
-		}
-	}
-	return hist.Save()
+	return mgr.Append(entry)
 }
 
-// Load reads the history from the file.
+// Load 透過長駐管理器回傳現有歷史紀錄。
 func Load() (*History, error) {
-	path, err := getHistoryPath()
+	mgr, err := getDefaultManager()
 	if err != nil {
 		return nil, err
 	}
-
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		// History file does not exist, return an empty history.
-		return &History{Entries: []Entry{}}, nil
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-	if len(data) == 0 {
-		return &History{Entries: []Entry{}}, nil
-	}
-
-	var hist History
-	if err := json.Unmarshal(data, &hist); err != nil {
-		return nil, err
-	}
-
-	return &hist, nil
+	return &History{Entries: mgr.Entries()}, nil
 }
 
-// Clear removes all entries from history by overwriting the file with an empty set.
+// Clear 透過管理器清空歷史檔案並保持檔案格式一致。
 func Clear() error {
-	empty := &History{Entries: []Entry{}}
-	return empty.Save()
+	mgr, err := getDefaultManager()
+	if err != nil {
+		return err
+	}
+	return mgr.Clear()
+}
+
+// Close 強制刷新並關閉預設歷史管理器，供 CLI 結束時釋放資源。
+func Close() error {
+	if managerInst == nil {
+		return nil
+	}
+
+	err := managerInst.Close()
+	if err != nil {
+		log.Printf("aish history: failed to close manager: %v", err)
+	}
+	return err
 }

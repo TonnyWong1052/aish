@@ -365,6 +365,19 @@ func (v *Validator) contains(slice []string, item string) bool {
 	return false
 }
 
+func defaultLogFilePath() string {
+	if home, err := os.UserHomeDir(); err == nil {
+		candidateDir := filepath.Join(home, ".config", "aish", "logs")
+		if err := os.MkdirAll(candidateDir, 0o755); err == nil {
+			return filepath.Join(candidateDir, "aish.log")
+		}
+	}
+
+	fallbackDir := filepath.Join(os.TempDir(), "aish", "logs")
+	_ = os.MkdirAll(fallbackDir, 0o755)
+	return filepath.Join(fallbackDir, "aish.log")
+}
+
 // ValidateAndFix 驗證配置並自動修復簡單問題
 func (c *Config) ValidateAndFix() ([]string, error) {
 	var fixes []string
@@ -381,8 +394,7 @@ func (c *Config) ValidateAndFix() ([]string, error) {
 
 	// 修復日誌文件路徑
 	if c.UserPreferences.Logging.LogFile == "" {
-		home, _ := os.UserHomeDir()
-		c.UserPreferences.Logging.LogFile = filepath.Join(home, ".config", "aish", "logs", "aish.log")
+		c.UserPreferences.Logging.LogFile = defaultLogFilePath()
 		fixes = append(fixes, "設置默認日誌文件路徑")
 	}
 
