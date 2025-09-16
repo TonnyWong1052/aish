@@ -371,3 +371,5 @@ $ aish capture  # AISH's own commands
     aish -p "list all files in the current directory"
     aish -p "find all .go files"
     ```# aish
+# aish
+# aish
