@@ -316,7 +316,7 @@ func effectiveLanguage(cfg *config.Config) string {
 
 func versionString() string {
 	if strings.TrimSpace(_version) == "" {
-		return "v0.0.1"
+		return "v0.0.3"
 	}
 	return _version
 }
