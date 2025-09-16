@@ -17,7 +17,6 @@ vendor/
 # Project binaries
 bin/
 aish
-cmd/aish/aish
 tools/gemini/token-refresher/token-refresher
 
 # Web bundles
@@ -38,3 +37,4 @@ web-bundles/
 
 
 AGENTS.md
+.kilocodemodes
