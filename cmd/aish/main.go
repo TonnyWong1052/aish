@@ -243,7 +243,6 @@ func isProviderConfigIncomplete(providerName string, cfg config.ProviderConfig) 
 	}
 }
 
-
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Prints the version number of aish",
@@ -265,6 +264,7 @@ func init() {
 }
 
 func main() {
+	defer history.Close()
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -316,7 +316,7 @@ func effectiveLanguage(cfg *config.Config) string {
 
 func versionString() string {
 	if strings.TrimSpace(_version) == "" {
-		return "v0.0.3"
+		return "v0.0.4"
 	}
 	return _version
 }
