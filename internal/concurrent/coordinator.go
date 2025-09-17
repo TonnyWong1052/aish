@@ -9,13 +9,13 @@ import (
 	"powerful-cli/internal/llm"
 )
 
-// ProcessingCoordinator 處理協調器，管理並發的 AI 請求和本地處理
+// ProcessingCoordinator processing coordinator, manages concurrent AI requests and local processing
 type ProcessingCoordinator struct {
 	aiWorkerPool    *WorkerPool
 	localWorkerPool *WorkerPool
 	cacheWorkerPool *WorkerPool
 
-	// 任務計數器
+	// Task counter
 	taskCounter int64
 	mu          sync.Mutex
 

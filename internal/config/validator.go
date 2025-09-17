@@ -87,7 +87,7 @@ func (c *Config) Validate() error {
 	validator.validateUserPreferences(c)
 
 	if validator.HasErrors() {
-		return errors.WrapError(validator.GetErrors(), errors.ErrConfigValidation, "配置驗證失敗")
+		return errors.WrapError(validator.GetErrors(), errors.ErrConfigValidation, "configuration validation failed")
 	}
 
 	return nil
@@ -111,7 +111,7 @@ func (v *Validator) validateBasicConfig(c *Config) {
 	}
 }
 
-// validateProviders 驗證提供商配置
+// validateProviders validates provider configuration
 func (v *Validator) validateProviders(c *Config) {
 	supportedProviders := map[string]bool{
 		"openai":     true,

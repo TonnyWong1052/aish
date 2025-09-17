@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// CompiledTemplate 表示編譯後的模板
+// CompiledTemplate represents a compiled template
 type CompiledTemplate struct {
 	Template     *template.Template
 	CompiledAt   time.Time
@@ -14,7 +14,7 @@ type CompiledTemplate struct {
 	AccessCount  int64
 }
 
-// TemplateCache 模板緩存
+// TemplateCache template cache
 type TemplateCache struct {
 	mu        sync.RWMutex
 	templates map[string]CompiledTemplate

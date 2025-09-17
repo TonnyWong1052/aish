@@ -263,18 +263,18 @@ func (w *ConfigWizard) selectModelFromAPI(cfg *config.ProviderConfig) (string, e
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&modelsResp); err != nil {
-		return "", fmt.Errorf("解析響應失敗: %w", err)
+		return "", fmt.Errorf("failed to parse response: %w", err)
 	}
 
 	if modelsResp.Error != nil {
-		return "", fmt.Errorf("API 錯誤: %s", modelsResp.Error.Message)
+		return "", fmt.Errorf("API error: %s", modelsResp.Error.Message)
 	}
 
 	if len(modelsResp.Data) == 0 {
-		return "", fmt.Errorf("未找到任何可用模型")
+		return "", fmt.Errorf("no available models found")
 	}
 
-	// 按類別分組模型
+	// Group models by category
 	gptModels := []string{}
 	otherModels := []string{}
 
@@ -286,9 +286,9 @@ func (w *ConfigWizard) selectModelFromAPI(cfg *config.ProviderConfig) (string, e
 		}
 	}
 
-	pterm.Success.Printf("找到 %d 個可用模型\n", len(modelsResp.Data))
+	pterm.Success.Printf("Found %d available models\n", len(modelsResp.Data))
 
-	// 構建選項列表
+	// Build options list
 	allOptions := []string{}
 
 	if len(gptModels) > 0 {

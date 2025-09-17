@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-// OptimizedManager 高性能歷史記錄管理器
+// OptimizedManager high-performance history record manager
 type OptimizedManager struct {
 	mu                 sync.RWMutex
 	entries            []Entry
@@ -22,23 +22,23 @@ type OptimizedManager struct {
 	flushInterval      time.Duration
 	compressionEnabled bool
 
-	// 批量寫入控制
+	// Batch write control
 	flushTimer    *time.Timer
 	pendingWrites int
 	lastFlushTime time.Time
 
-	// 文件管理
+	// File management
 	currentFile *os.File
 	archiveDir  string
 	stats       ManagerStats
 
-	// 控制通道
+	// Control channels
 	flushChan chan struct{}
 	stopChan  chan struct{}
 	stopped   bool
 }
 
-// ManagerStats 管理器統計信息
+// ManagerStats manager statistics information
 type ManagerStats struct {
 	TotalEntries   int64
 	BatchWrites    int64

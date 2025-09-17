@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// ResourceManager 資源管理器
+// ResourceManager resource manager
 type ResourceManager struct {
 	mu              sync.RWMutex
 	memoryLimit     int64 // ��存限制（字節）
