@@ -503,16 +503,25 @@ func (w *ConfigWizard) configureGeminiCLI(cfg *config.ProviderConfig) error {
 func (w *ConfigWizard) configureLanguage() error {
 	pterm.DefaultHeader.Println("語言設置")
 
-	languages := []string{"chinese", "english", "japanese"}
+	languages := []string{"english", "zh-TW", "zh-CN", "japanese", "korean", "spanish", "french", "german", "italian", "portuguese", "russian", "arabic"}
 	languageNames := map[string]string{
-		"chinese":  "中文",
-		"english":  "English",
-		"japanese": "日本語",
+		"english":    "English",
+		"zh-TW":      "繁體中文 (Traditional Chinese)",
+		"zh-CN":      "简体中文 (Simplified Chinese)",
+		"japanese":   "日本語 (Japanese)",
+		"korean":     "한국어 (Korean)",
+		"spanish":    "Español (Spanish)",
+		"french":     "Français (French)",
+		"german":     "Deutsch (German)",
+		"italian":    "Italiano (Italian)",
+		"portuguese": "Português (Portuguese)",
+		"russian":    "Русский (Russian)",
+		"arabic":     "العربية (Arabic)",
 	}
 
 	pterm.Info.Println("選擇 AI 響應的語言:")
 	for _, lang := range languages {
-		pterm.Printf("• %s (%s)\n", languageNames[lang], lang)
+		pterm.Printf("• %s\n", languageNames[lang])
 	}
 
 	selectedLanguage, _ := pterm.DefaultInteractiveSelect.

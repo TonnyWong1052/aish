@@ -450,12 +450,29 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 	cfg.Providers[selProvider] = pc
 
 	// 5) 語言
-	langs := []string{"english", "chinese", "japanese"}
+	langs := []string{"english", "zh-TW", "zh-CN", "japanese", "korean", "spanish", "french", "german", "italian", "portuguese", "russian", "arabic"}
+	langNames := map[string]string{
+		"english":   "English",
+		"zh-TW":     "繁體中文 (Traditional Chinese)",
+		"zh-CN":     "简体中文 (Simplified Chinese)",
+		"japanese":  "日本語 (Japanese)",
+		"korean":    "한국어 (Korean)",
+		"spanish":   "Español (Spanish)",
+		"french":    "Français (French)",
+		"german":    "Deutsch (German)",
+		"italian":   "Italiano (Italian)",
+		"portuguese": "Português (Portuguese)",
+		"russian":   "Русский (Russian)",
+		"arabic":    "العربية (Arabic)",
+	}
 	curLang := cfg.UserPreferences.Language
 	if curLang == "" {
 		curLang = "english"
 	}
 	pterm.Println("Language:")
+	for _, lang := range langs {
+		pterm.Printf("• %s\n", langNames[lang])
+	}
 	selLang, err := pterm.DefaultInteractiveSelect.
 		WithOptions(langs).
 		WithDefaultOption(curLang).
@@ -733,9 +750,18 @@ func plainConfigureWizard(cfg *config.Config) error {
 		defLang = "english"
 	}
 	fmt.Println("Language:")
-	fmt.Println("  - english")
-	fmt.Println("  - chinese")
-	fmt.Println("  - japanese")
+	fmt.Println("  - english (English)")
+	fmt.Println("  - zh-TW (繁體中文 - Traditional Chinese)")
+	fmt.Println("  - zh-CN (简体中文 - Simplified Chinese)")
+	fmt.Println("  - japanese (日本語 - Japanese)")
+	fmt.Println("  - korean (한국어 - Korean)")
+	fmt.Println("  - spanish (Español - Spanish)")
+	fmt.Println("  - french (Français - French)")
+	fmt.Println("  - german (Deutsch - German)")
+	fmt.Println("  - italian (Italiano - Italian)")
+	fmt.Println("  - portuguese (Português - Portuguese)")
+	fmt.Println("  - russian (Русский - Russian)")
+	fmt.Println("  - arabic (العربية - Arabic)")
 	fmt.Printf("[current: %s]\n>: ", defLang)
 	lang, _ := reader.ReadString('\n')
 	lang = strings.TrimSpace(lang)
