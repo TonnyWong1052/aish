@@ -149,7 +149,7 @@ func getHookCode() string {
 	return `
 # AISH (AI Shell) Hook - Start
 
-# 狀態檔案位置
+# State file locations
 if [ -z "$AISH_STATE_DIR" ]; then
     AISH_STATE_DIR="$HOME/.config/aish"
 fi
@@ -158,40 +158,40 @@ AISH_STDERR_FILE="$AISH_STATE_DIR/last_stderr"
 AISH_LAST_CMD_FILE="$AISH_STATE_DIR/last_command"
 mkdir -p "$AISH_STATE_DIR" >/dev/null 2>&1 || true
 
-# 敏感資訊遮罩：將命令中常見敏感參數值以 ***REDACTED*** 替換
+# Sensitive information masking: replace common sensitive parameter values in commands with ***REDACTED***
 __aish_sanitize_cmd() {
     local _c="$1"
-    # 旗標形式 --key=VALUE / --key VALUE（使用雙引號避免巢狀引號問題）
+    # Flag form --key=VALUE / --key VALUE (use double quotes to avoid nested quote issues)
     _c=$(printf "%s" "$_c" | sed -E "s/--(api[_-]?key|token|password|passwd|secret|bearer)=([^[:space:]]+)/--\\1=***REDACTED***/g")
     _c=$(printf "%s" "$_c" | sed -E "s/--(api[_-]?key|token|password|passwd|secret|bearer)[[:space:]]+([^[:space:]]+)/--\\1 ***REDACTED***/g")
-    # 環境變數形式 FOO_TOKEN=VALUE 或 ...SECRET...=VALUE
+    # Environment variable form FOO_TOKEN=VALUE or ...SECRET...=VALUE
     _c=$(printf "%s" "$_c" | sed -E "s/([A-Za-z_][A-Za-z0-9_]*((SECRET)|(TOKEN)|(PASSWORD)|(API[_-]?KEY)|(ACCESS[_-]?KEY)|(BEARER))[A-Za-z0-9_]*)=([^[:space:]]+)/\\1=***REDACTED***/g")
     echo "$_c"
 }
 
-# 常見錯誤關鍵字，用於在 hook 端做一次預過濾，減少無效觸發
+# Common error keywords for pre-filtering on hook side to reduce invalid triggers
 __aish_should_trigger() {
     local exit_code="$1"
-    # 只在非 0 退出碼時考慮
+    # Only consider non-zero exit codes
     if [ "$exit_code" -eq 0 ]; then
         return 1
     fi
-    # 跳過用戶主動取消/終止（Ctrl+C=SIGINT=130, Ctrl+\=SIGQUIT=131, SIGTERM=143）
+    # Skip user-initiated cancellation/termination (Ctrl+C=SIGINT=130, Ctrl+\=SIGQUIT=131, SIGTERM=143)
     if [ "$exit_code" -eq 130 ] || [ "$exit_code" -eq 131 ] || [ "$exit_code" -eq 143 ]; then
         return 1
     fi
-    # 若 stderr 不存在，仍允許上報，由應用側再過濾（保守模式）
+    # If stderr doesn't exist, still allow reporting, let application side filter (conservative mode)
     if [ ! -s "$AISH_STDERR_FILE" ]; then
         return 0
     fi
-    # 與分類器關鍵字對齊，做初步判斷
+    # Align with classifier keywords for preliminary judgment
     if grep -Eiq '(command not found|No such file or directory|Permission denied|cannot execute binary file|invalid (argument|option)|File exists|is not a directory)' "$AISH_STDERR_FILE"; then
         return 0
     fi
     return 1
 }
 
-# 通用：避免在執行 aish 本身時遞迴觸發
+# General: avoid recursive triggering when executing aish itself
 __aish_should_skip_cmd() {
     case "$1" in
         aish*|*/aish*) return 0;;
@@ -200,7 +200,7 @@ __aish_should_skip_cmd() {
 }
 
 if [ -n "$ZSH_VERSION" ]; then
-    # zsh 版本：使用 preexec/precmd 做前後置包裝
+    # zsh version: use preexec/precmd for pre/post wrapping
     __aish_capture_on=0
 
     _aish_preexec() {
@@ -211,7 +211,7 @@ if [ -n "$ZSH_VERSION" ]; then
         local _sanitized
         _sanitized="$(__aish_sanitize_cmd "$cmd")"
         printf "%s" "$_sanitized" > "$AISH_LAST_CMD_FILE"
-        # 保存原始 FD 並重定向
+        # Save original FD and redirect
         exec 4>&1 5>&2
         exec 1> >(tee -a "$AISH_STDOUT_FILE") 2> >(tee -a "$AISH_STDERR_FILE" >&2)
         __aish_capture_on=1
@@ -220,7 +220,7 @@ if [ -n "$ZSH_VERSION" ]; then
     _aish_precmd() {
         local exit_code=$?
         if [ "$__aish_capture_on" = "1" ]; then
-            # 還原 FD
+            # Restore FD
             exec 1>&4 4>&- 2>&5 5>&-
             __aish_capture_on=0
         fi
@@ -240,11 +240,11 @@ if [ -n "$ZSH_VERSION" ]; then
     add-zsh-hook precmd  _aish_precmd
 
 else
-    # bash 版本：使用 trap DEBUG 與 PROMPT_COMMAND 實現
+    # bash version: use trap DEBUG and PROMPT_COMMAND implementation
     __aish_capture_on=0
 
     _aish_preexec() {
-        # 跳過內部或 aish 自身
+        # Skip internal or aish itself
         case "$BASH_COMMAND" in
             _aish_*|aish*|*/aish*) return ;;
         esac
@@ -278,7 +278,7 @@ else
         return $exit_code
     }
 
-    # 安裝 hook（保留原 PROMPT_COMMAND）
+    # Install hook (preserve original PROMPT_COMMAND)
     trap '_aish_preexec' DEBUG
     if [[ $PROMPT_COMMAND != *"_aish_postcmd"* ]]; then
         if [ -z "$PROMPT_COMMAND" ]; then

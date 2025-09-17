@@ -32,12 +32,12 @@ type GeminiCLIProvider struct {
 
 // NewProvider creates a new GeminiCLIProvider.
 func NewProvider(cfg config.ProviderConfig, pm *prompt.Manager) (llm.Provider, error) {
-    // 建立可配置的 HTTP Client（支援自定 CA 與可選跳過驗證）
+	// Create configurable HTTP Client (supports custom CA and optional skip verification)
     tr := &http.Transport{
         Proxy: http.ProxyFromEnvironment,
     }
 
-    // 環境變數控制：AISH_GEMINI_CA_FILE 指定 CA 憑證；AISH_GEMINI_SKIP_TLS_VERIFY 跳過驗證（僅測試用）
+    // Environment variable control: AISH_GEMINI_CA_FILE specifies CA certificate; AISH_GEMINI_SKIP_TLS_VERIFY skips verification (test only)
     caFile := strings.TrimSpace(os.Getenv("AISH_GEMINI_CA_FILE"))
     skipVerify := func() bool {
         v := strings.TrimSpace(strings.ToLower(os.Getenv("AISH_GEMINI_SKIP_TLS_VERIFY")))
@@ -57,7 +57,7 @@ func NewProvider(cfg config.ProviderConfig, pm *prompt.Manager) (llm.Provider, e
         tr.TLSClientConfig = tlsCfg
     }
 
-    // 允許透過環境變數覆蓋逾時（秒）
+    // Allow timeout override through environment variables (seconds)
     timeout := 30 * time.Second
     if s := strings.TrimSpace(os.Getenv("AISH_GEMINI_TIMEOUT")); s != "" {
         if n, err := time.ParseDuration(s+"s"); err == nil && n > 0 {
@@ -404,19 +404,19 @@ func (p *GeminiCLIProvider) generateContentHTTP(ctx context.Context, message str
 	return "", fmt.Errorf("HTTP %d error: %v\nraw: %s", status, err, raw)
 }
 
-// shouldUseCURL 決定是否以 cURL 優先（環境變數 AISH_GEMINI_USE_CURL=true/1/curl/yes）
+// shouldUseCURL determines whether to prioritize cURL (environment variable AISH_GEMINI_USE_CURL=true/1/curl/yes)
 func shouldUseCURL() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("AISH_GEMINI_USE_CURL")))
 	return v == "1" || v == "true" || v == "yes" || v == "curl"
 }
 
-// shouldDebug 控制是否輸出除錯資訊（遮蔽敏感資料）
+// shouldDebug controls whether to output debug information (masks sensitive data)
 func shouldDebug() bool {
 	v := strings.TrimSpace(strings.ToLower(os.Getenv("AISH_GEMINI_DEBUG")))
 	return v == "1" || v == "true" || v == "yes" || v == "debug"
 }
 
-// maskToken 遮蔽 Bearer token 顯示
+// maskToken masks Bearer token display
 func maskToken(tok string) string {
 	tok = strings.TrimSpace(tok)
 	if len(tok) <= 10 {
@@ -425,9 +425,9 @@ func maskToken(tok string) string {
 	return tok[:6] + "..." + tok[len(tok)-6:]
 }
 
-// generateContentCURL 使用 cURL 發送請求，格式對齊使用者提供的範例
+// generateContentCURL uses cURL to send requests, format aligned with user-provided examples
 func (p *GeminiCLIProvider) generateContentCURL(ctx context.Context, message string) (string, error) {
-	// 確保 token 有效
+	// Ensure token is valid
 	if err := auth.EnsureValidToken(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: token refresh check failed: %v\n", err)
 	}
@@ -447,7 +447,7 @@ func (p *GeminiCLIProvider) generateContentCURL(ctx context.Context, message str
 		return "", fmt.Errorf("failed to get OAuth token: %w", err)
 	}
 
-	// 構造 body（簡化版本，與你最新提供的參考一致）
+	// Construct body (simplified version, consistent with your latest reference)
 	body := map[string]any{
 		"model":   p.cfg.Model,
 		"project": p.cfg.Project,
@@ -473,7 +473,7 @@ func (p *GeminiCLIProvider) generateContentCURL(ctx context.Context, message str
         "--header", "Content-Type: application/json",
         "--data", string(jb),
     )
-    // SSL 驗證控制：與 HTTP 客戶端一致
+    // SSL verification control: consistent with HTTP client
     if v := strings.TrimSpace(strings.ToLower(os.Getenv("AISH_GEMINI_SKIP_TLS_VERIFY"))); v == "1" || v == "true" || v == "yes" {
         cmd.Args = append(cmd.Args, "--insecure")
     }
@@ -501,7 +501,7 @@ func (p *GeminiCLIProvider) generateContentCURL(ctx context.Context, message str
     if err := json.Unmarshal(raw, &response); err != nil {
         return "", fmt.Errorf("failed to decode curl response: %v | %s", err, out.String())
     }
-    // 擷取純文字回覆（同時支援包裹在 "response" 下的結構）
+    // Extract plain text response (also supports structure wrapped under "response")
     if txt, ok := parseTextFromAPIResponse(response); ok {
         return txt, nil
     }
@@ -512,18 +512,18 @@ func (p *GeminiCLIProvider) generateContentCURL(ctx context.Context, message str
 
 }
 
-// parseTextFromAPIResponse 解析 API 回傳結構，支援頂層或包在 "response" 內的 candidates 結構
+// parseTextFromAPIResponse parses API response structure, supports top-level or candidates structure wrapped under "response"
 func parseTextFromAPIResponse(m map[string]any) (string, bool) {
     root := m
     if r, ok := m["response"].(map[string]any); ok {
         root = r
     }
-    // 取第一個 candidate 的第一個 parts.text
+    // Get first candidate's first parts.text
     if candidates, ok := root["candidates"].([]any); ok && len(candidates) > 0 {
         if candidate, ok := candidates[0].(map[string]any); ok {
             if content, ok := candidate["content"].(map[string]any); ok {
                 if parts, ok := content["parts"].([]any); ok && len(parts) > 0 {
-                    // 掃描找到第一個具有 text 的 part
+                    // Scan to find first part with text
                     for _, p := range parts {
                         if part, ok := p.(map[string]any); ok {
                             if text, ok := part["text"].(string); ok && strings.TrimSpace(text) != "" {
@@ -538,15 +538,15 @@ func parseTextFromAPIResponse(m map[string]any) (string, bool) {
     return "", false
 }
 
-// findFirstTextInJSON 遞迴尋找任意層級的第一個 text 欄位（防守性處理各種回應變體）
+// findFirstTextInJSON recursively finds the first text field at any level (defensive handling of various response variants)
 func findFirstTextInJSON(v any) (string, bool) {
     switch t := v.(type) {
     case map[string]any:
-        // 優先直接拿 text
+        // Prefer to get text directly
         if s, ok := t["text"].(string); ok && strings.TrimSpace(s) != "" {
             return s, true
         }
-        // 遞迴進入所有子節點
+        // Recursively enter all child nodes
         for _, child := range t {
             if s, ok := findFirstTextInJSON(child); ok {
                 return s, true
@@ -559,16 +559,16 @@ func findFirstTextInJSON(v any) (string, bool) {
             }
         }
     case string:
-        // 少數服務直接回傳純文字
+        // Few services return plain text directly
         s := strings.TrimSpace(t)
-        if s != "" && !regexp.MustCompile(`^\{`).MatchString(s) { // 避免把整包 JSON 當文字
+        if s != "" && !regexp.MustCompile(`^\{`).MatchString(s) { // Avoid treating entire JSON package as text
             return s, true
         }
     }
     return "", false
 }
 
-// getBearerToken 允許使用環境變數覆蓋（與你在 cURL 測試時使用的 token 完全一致）
+// getBearerToken allows environment variable override (exactly consistent with token used in cURL testing)
 func (p *GeminiCLIProvider) getBearerToken(ctx context.Context) (string, error) {
 	if s := strings.TrimSpace(os.Getenv("AISH_GEMINI_BEARER")); s != "" {
 		return s, nil
@@ -824,10 +824,10 @@ func (p *GeminiCLIProvider) parseSuggestionResponse(response string) (*llm.Sugge
 
 	// Final fallbacks
 	if explanation == "" {
-		explanation = "請檢查命令語法和參數是否正確。"
+		explanation = "Please check command syntax and parameters."
 	}
 	if correctedCommand == "" {
-		correctedCommand = "echo '無法自動修正命令，請手動檢查'"
+		correctedCommand = "echo 'Unable to auto-correct command, please check manually'"
 	}
 
 	return &llm.Suggestion{
@@ -839,7 +839,7 @@ func (p *GeminiCLIProvider) parseSuggestionResponse(response string) (*llm.Sugge
 // mapLanguage maps user language preferences to template language codes
 func mapLanguage(lang string) string {
 	switch strings.ToLower(lang) {
-	case "chinese", "zh", "中文", "繁體中文":
+	case "chinese", "zh", "zh-TW", "zh-CN":
 		return "zh-TW"
 	case "english", "en":
 		return "en"

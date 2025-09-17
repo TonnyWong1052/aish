@@ -186,7 +186,7 @@ var configSetCmd = &cobra.Command{
 
 // runConfigureLogic contains the logic from the original configureCmd
 func runConfigureLogic(cmd *cobra.Command, args []string) {
-	// 若未明確指定 --interactive，則在 TTY 中預設啟用互動式精靈
+	// If --interactive is not explicitly specified, enable interactive wizard by default in TTY
 	interactiveFlag, _ := cmd.Flags().GetBool("interactive")
 	interactive := interactiveFlag
 	if !cmd.Flags().Changed("interactive") {
@@ -202,7 +202,7 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 		cfg.Providers = make(map[string]config.ProviderConfig)
 	}
 
-	// 僅在 interactive 旗標為 true 且 TTY 可用時執行 TUI 精靈
+	// Only execute TUI wizard when interactive flag is true and TTY is available
 	if interactive && isInteractiveTTY() {
 		pterm.Info.Println("Running interactive TUI configuration...")
 	} else {
@@ -214,10 +214,10 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 		return
 	}
 
-	// 1) 選擇提供商（箭頭上下）
+	// 1) Select provider (arrow keys up/down)
 	type provItem struct{ label, key string }
 	items := []provItem{{"OpenAI", "openai"}, {"Gemini", "gemini"}, {"Gemini CLI", "gemini-cli"}}
-	// 預設值（以 label 呈現）
+	// Default value (displayed as label)
 	defaultKey := cfg.DefaultProvider
 	if defaultKey == "" {
 		defaultKey = "openai"
@@ -231,7 +231,7 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 	}
 
 	pterm.Println("Default provider:")
-	// 顯示互動式選單
+	// Display interactive menu
 	var labels []string
 	for _, it := range items {
 		labels = append(labels, it.label)
@@ -254,7 +254,7 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 	}
 	cfg.DefaultProvider = selProvider
 
-	// 準備現有 provider 設定或預設
+	// Prepare existing provider settings or defaults
 	pc := cfg.Providers[selProvider]
 	switch selProvider {
 	case "openai":
@@ -272,14 +272,14 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 			pc.Model = "gemini-pro"
 		}
 	case "gemini-cli":
-		// Gemini CLI 的 API endpoint 固定為完整路徑，不提供使用者修改
+		// Gemini CLI's API endpoint is fixed to full path, not allowing user modification
 		pc.APIEndpoint = "https://cloudcode-pa.googleapis.com/v1internal:generateContent"
 		if pc.Model == "" {
 			pc.Model = "gemini-2.5-flash"
 		}
 	}
 
-	// 2) API Endpoint（Gemini CLI 固定，其他可輸入）
+	// 2) API Endpoint (Gemini CLI fixed, others can be input)
 	reader := bufio.NewReader(os.Stdin)
 	if selProvider != "gemini-cli" {
 		pterm.Println(fmt.Sprintf("API endpoint [%s]:", pc.APIEndpoint))
@@ -292,7 +292,7 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 		// API endpoint is fixed for Gemini CLI, no need to display
 	}
 
-	// 3) 憑證/專案輸入
+	// 3) Credentials/Project input
 	switch selProvider {
 	case "openai":
 		// Ask about legacy endpoint *after* setting the endpoint URL
@@ -306,7 +306,7 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 			}
 		}
 
-		// API Key（掩碼）
+		// API Key (masked)
 		pterm.Println("OpenAI API key (leave empty to skip):")
 		fmt.Print(">: ")
 		bytePassword, _ := term.ReadPassword(int(os.Stdin.Fd()))
@@ -325,9 +325,9 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 			pc.APIKey = strings.TrimSpace(k)
 		}
 	case "gemini-cli":
-		// 顯示官方文件連結以協助設定 Workspace GCA
+		// Display official documentation link to help configure Workspace GCA
 		pterm.Info.Printfln("Docs: Gemini CLI Workspace GCA: %s", "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/authentication.md#workspace-gca")
-		// 隱藏已設定的 Project ID，避免洩漏敏感資訊
+		// Hide configured Project ID to avoid leaking sensitive information
 		disp := hideIfSet(pc.Project)
 		pterm.Println(fmt.Sprintf("Google Cloud project ID [%s]:", disp))
 		fmt.Print(">: ")
@@ -340,9 +340,9 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 
 	// 4) Model
 	if selProvider == "gemini-cli" {
-		// 僅支援 2.5 系列
+		// Only support 2.5 series
 		allowed := []string{"gemini-2.5-pro", "gemini-2.5-flash"}
-		// 預設選項：若當前不在允許清單中，回退為 gemini-2.5-flash
+		// Default option: if current is not in allowed list, fallback to gemini-2.5-flash
 		defaultModel := pc.Model
 		inAllowed := false
 		for _, m := range allowed {
@@ -363,7 +363,7 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 		if err == nil && selModel != "" {
 			pc.Model = selModel
 		} else {
-			// 後備：保持原值或設為預設
+			// Fallback: keep original value or set to default
 			pc.Model = defaultModel
 		}
 	} else { // For openai and gemini
@@ -446,24 +446,24 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 		}
 	}
 
-	// 寫回 provider 設定
+	// Write back provider settings
 	cfg.Providers[selProvider] = pc
 
-	// 5) 語言
+	// 5) Language
 	langs := []string{"english", "zh-TW", "zh-CN", "japanese", "korean", "spanish", "french", "german", "italian", "portuguese", "russian", "arabic"}
 	langNames := map[string]string{
-		"english":   "English",
-		"zh-TW":     "繁體中文 (Traditional Chinese)",
-		"zh-CN":     "简体中文 (Simplified Chinese)",
-		"japanese":  "日本語 (Japanese)",
-		"korean":    "한국어 (Korean)",
-		"spanish":   "Español (Spanish)",
-		"french":    "Français (French)",
-		"german":    "Deutsch (German)",
-		"italian":   "Italiano (Italian)",
+		"english":    "English",
+		"zh-TW":      "繁體中文 (Traditional Chinese)",
+		"zh-CN":      "简体中文 (Simplified Chinese)",
+		"japanese":   "日本語 (Japanese)",
+		"korean":     "한국어 (Korean)",
+		"spanish":    "Español (Spanish)",
+		"french":     "Français (French)",
+		"german":     "Deutsch (German)",
+		"italian":    "Italiano (Italian)",
 		"portuguese": "Português (Portuguese)",
-		"russian":   "Русский (Russian)",
-		"arabic":    "العربية (Arabic)",
+		"russian":    "Русский (Russian)",
+		"arabic":     "العربية (Arabic)",
 	}
 	curLang := cfg.UserPreferences.Language
 	if curLang == "" {
@@ -484,9 +484,9 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 	}
 	cfg.UserPreferences.Language = selLang
 
-	// 6) 觸發器（多選）
-	// 說明：將長提示移出互動組件，避免在窄終端換行導致每次箭頭重繪時
-	//      重複輸出標題（觀察到的重複 "Enable auto-trigger..." 問題）。
+	// 6) Triggers (multi-select)
+	// Note: Move long prompts out of interactive components to avoid line wrapping in narrow terminals
+	//       causing repeated title output on each arrow redraw (observed "Enable auto-trigger..." repetition issue).
 	pterm.DefaultHeader.Println("Auto-trigger Error Types")
 	pterm.Info.Println("Use arrows to move, space to toggle, enter to confirm.")
 	triggerOptions := []string{
@@ -502,7 +502,7 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 	}
 	defaultTriggers := cfg.UserPreferences.EnabledLLMTriggers
 	if len(defaultTriggers) == 0 {
-		// 推薦預設：大部分錯誤都啟用
+		// Recommended defaults: enable most errors
 		defaultTriggers = []string{
 			"CommandNotFound", "FileNotFoundOrDirectory", "PermissionDenied", "CannotExecute",
 			"InvalidArgumentOrOption", "ResourceExists", "NotADirectory", "TerminatedBySignal", "GenericError",
@@ -511,7 +511,7 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 	selTriggers, err := pterm.DefaultInteractiveMultiselect.
 		WithOptions(triggerOptions).
 		WithDefaultOptions(defaultTriggers).
-		// 將顯示字串設為空，避免長行換行造成的重疊/殘留
+		// Set display string to empty to avoid overlap/residue from long line wrapping
 		Show("")
 	if err != nil {
 		_ = plainConfigureWizard(cfg)
@@ -520,7 +520,7 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 	}
 	cfg.UserPreferences.EnabledLLMTriggers = selTriggers
 
-	// 7) 啟用 aish
+	// 7) Enable aish
 	cfg.Enabled = true
 
 	if err := cfg.Save(); err != nil {
@@ -531,7 +531,7 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 	pterm.Success.Println("Configuration saved.")
 }
 
-// maskIfSet 將非空鍵遮罩顯示
+// maskIfSet masks non-empty keys for display
 func maskIfSet(v string) string {
 	if strings.TrimSpace(v) == "" {
 		return ""
@@ -551,12 +551,12 @@ func hideIfSet(v string) string {
 	return "hidden"
 }
 
-// isInteractiveTTY 檢查是否在交互式 TTY 環境
+// isInteractiveTTY checks if in interactive TTY environment
 func isInteractiveTTY() bool {
 	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 }
 
-// plainConfigureWizard 提供不依賴 TUI 的純文字配置流程
+// plainConfigureWizard provides a plain text configuration flow that doesn't depend on TUI
 func plainConfigureWizard(cfg *config.Config) error {
 	reader := bufio.NewReader(os.Stdin)
 
@@ -596,7 +596,7 @@ func plainConfigureWizard(cfg *config.Config) error {
 			pc.Model = "gemini-pro"
 		}
 	case "gemini-cli":
-		// Gemini CLI 的 API endpoint 固定為完整路徑，不提供使用者修改
+		// Gemini CLI's API endpoint is fixed to full path, not allowing user modification
 		pc.APIEndpoint = "https://cloudcode-pa.googleapis.com/v1internal:generateContent"
 		if pc.Model == "" {
 			pc.Model = "gemini-2.5-flash"
@@ -648,9 +648,9 @@ func plainConfigureWizard(cfg *config.Config) error {
 			pc.APIKey = k
 		}
 	case "gemini-cli":
-		// 顯示官方文件連結以協助設定 Workspace GCA
+		// Display official documentation link to help configure Workspace GCA
 		fmt.Printf("Docs: Gemini CLI Workspace GCA: %s\n", "https://github.com/google-gemini/gemini-cli/blob/main/docs/cli/authentication.md#workspace-gca")
-		// 隱藏已設定的 Project ID，避免洩漏敏感資訊
+		// Hide configured Project ID to avoid leaking sensitive information
 		disp := hideIfSet(pc.Project)
 		fmt.Printf("Google Cloud project ID [%s]:\n>: ", disp)
 		prj, _ := reader.ReadString('\n')
@@ -663,10 +663,10 @@ func plainConfigureWizard(cfg *config.Config) error {
 
 	// --- Model ---
 	if prov == "gemini-cli" {
-		// 僅保留 2.5 系列
+		// Only keep 2.5 series
 		allowed := []string{"gemini-2.5-pro", "gemini-2.5-flash"}
-		// 顯示選項並允許輸入序號或完整名稱；空輸入採預設
-		// 預設值：若當前不在允許清單，回退為 gemini-2.5-flash
+		// Display options and allow input of sequence number or full name; empty input uses default
+		// Default value: if current is not in allowed list, fallback to gemini-2.5-flash
 		defModel := pc.Model
 		valid := false
 		for _, a := range allowed {
@@ -694,7 +694,7 @@ func plainConfigureWizard(cfg *config.Config) error {
 		case "":
 			pc.Model = defModel
 		default:
-			// 無效輸入則沿用預設
+			// Invalid input uses default
 			pc.Model = defModel
 		}
 	} else {
@@ -716,7 +716,7 @@ func plainConfigureWizard(cfg *config.Config) error {
 		if yn == "y" || yn == "yes" {
 			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 			defer cancel()
-			// 這裡直接使用 OpenAI provider 對 /models 發出請求（採用 POST 優先，405 回退 GET）
+			// Here directly use OpenAI provider to make request to /models (POST preferred, 405 fallback to GET)
 			tempProv, err := openai.NewProvider(pc, (*prompt.Manager)(nil))
 			if err != nil {
 				fmt.Printf("Connection test unavailable: %v\n\n", err)
@@ -726,7 +726,7 @@ func plainConfigureWizard(cfg *config.Config) error {
 					if verr != nil {
 						fmt.Printf("Connection test failed: %v\n\n", verr)
 					} else {
-						// 顯示少量結果即可
+						// Display a few results is sufficient
 						preview := models
 						if len(preview) > 5 {
 							preview = preview[:5]

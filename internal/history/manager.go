@@ -12,10 +12,10 @@ import (
 	"sync"
 )
 
-// Manager 維護歷史紀錄的長駐寫入流程，避免每次操作都重寫整個檔案。
+// Manager maintains persistent write flow for history records, avoiding rewriting the entire file on each operation.
 type Manager struct {
 	mu           sync.RWMutex
-	entries      []Entry // 以最新紀錄在前的順序保存
+	entries      []Entry // Store with latest records first
 	file         *os.File
 	writer       *bufio.Writer
 	needsRewrite bool

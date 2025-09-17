@@ -58,8 +58,8 @@ var captureCmd = &cobra.Command{
 		if err != nil || !cfg.Enabled {
 			return
 		}
-		// 安全性調整：不再重跑上一條命令以獲取輸出，避免副作用與高耗時。
-		// 若 hook 已將輸出寫入暫存檔，透過環境變數讀取並截取尾部內容（避免超大字串）。
+		// Security adjustment: No longer re-run the previous command to get output, avoiding side effects and high latency.
+		// If hook has written output to temp files, read through environment variables and capture tail content (avoid oversized strings).
 		const maxCaptureBytes = 200_000
 		stdoutStr := readTail(os.Getenv("AISH_STDOUT_FILE"), maxCaptureBytes)
 		stderrStr := readTail(os.Getenv("AISH_STDERR_FILE"), maxCaptureBytes)
@@ -182,7 +182,7 @@ func runPromptLogic(promptStr string) {
 	presenter.StopLoading(true)
 	generatedCommand := strings.TrimSpace(cmdText)
 
-	// 檢查是否啟用自動執行（命令列參數優先於配置檔案）
+	// Check if auto-execute is enabled (command line arguments take priority over config file)
 	shouldAutoExecute := flagAutoExecute || cfg.UserPreferences.AutoExecute
 	if shouldAutoExecute {
 		pterm.Info.Println("Auto-executing command...")
@@ -190,7 +190,7 @@ func runPromptLogic(promptStr string) {
 		return
 	}
 
-	// 與 hook 流程統一的互動樣式
+	// Interactive style consistent with hook flow
 	for {
 		sug := ui.Suggestion{
 			Title:       "Generated Command",
@@ -206,7 +206,7 @@ func runPromptLogic(promptStr string) {
 			return
 		}
 
-		// 以新輸入作為提示重新產生指令
+		// Regenerate command using new input as prompt
 		presenter.ShowLoading("Generating new command...")
 		cmdText, err := provider.GenerateCommand(context.Background(), userInput, effectiveLanguage(cfg))
 		if err != nil || strings.TrimSpace(cmdText) == "" {
@@ -253,7 +253,7 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
-	// 讓可用命令的顯示順序遵循加入順序，確保 init 排在第一
+	// Make available commands display in the order they were added, ensuring init is first
 	cobra.EnableCommandSorting = false
 	rootCmd.AddCommand(initCmd)
 	rootCmd.AddCommand(askCmd)
@@ -271,13 +271,13 @@ func main() {
 	}
 }
 
-// 全域旗標
+// Global flags
 var (
 	flagProvider    string
 	flagLang        string
 	flagDebug       bool
 	flagPrompt      string
-	flagAutoExecute bool // 新增自動執行旗標
+	flagAutoExecute bool // New auto-execute flag
 )
 
 // versionString is injected by ldflags: -X 'main._version=vX.Y.Z'
@@ -321,7 +321,7 @@ func versionString() string {
 	return _version
 }
 
-// readTail 讀取檔案尾端最多 maxBytes 的內容（若路徑為空或讀取失敗，回傳空字串）
+// readTail reads the tail of a file up to maxBytes (returns empty string if path is empty or read fails)
 func readTail(path string, maxBytes int) string {
 	if path == "" {
 		return ""

@@ -179,17 +179,17 @@ func (w *ConfigWizard) configureOpenAIModel(cfg *config.ProviderConfig) error {
 	var err error
 
 	switch searchMethod {
-	case "從 API 獲取可用模型":
+	case "Fetch available models from API":
 		selectedModel, err = w.selectModelFromAPI(cfg)
-	case "使用預定義的常用模型":
+	case "Use predefined common models":
 		selectedModel, err = w.selectFromCommonModels(cfg)
-	case "手動輸入模型名稱":
+	case "Manually input model name":
 		selectedModel, err = w.inputCustomModel(cfg)
 	}
 
 	if err != nil {
-		pterm.Warning.Printf("選擇模型失敗: %v\n", err)
-		pterm.Info.Println("回退到手動輸入模式...")
+		pterm.Warning.Printf("Model selection failed: %v\n", err)
+		pterm.Info.Println("Falling back to manual input mode...")
 		selectedModel, err = w.inputCustomModel(cfg)
 		if err != nil {
 			return err
@@ -343,7 +343,7 @@ func (w *ConfigWizard) selectModelFromAPI(cfg *config.ProviderConfig) (string, e
 	return selectedModel, nil
 }
 
-// selectFromCommonModels 從預定義的常用模型中選擇
+// selectFromCommonModels selects from predefined common models
 func (w *ConfigWizard) selectFromCommonModels(cfg *config.ProviderConfig) (string, error) {
 	commonModels := []string{
 		"gpt-4o", "gpt-4o-mini", "gpt-4", "gpt-4-turbo",
@@ -369,7 +369,7 @@ func (w *ConfigWizard) selectFromCommonModels(cfg *config.ProviderConfig) (strin
 	return selectedModel, nil
 }
 
-// inputCustomModel 手動輸入模型名稱
+// inputCustomModel manually input model name
 func (w *ConfigWizard) inputCustomModel(cfg *config.ProviderConfig) (string, error) {
 	pterm.Info.Println("您可以輸入任何 OpenAI 支持的模型名稱")
 	pterm.Info.Println("例如: gpt-4o, gpt-4, gpt-3.5-turbo, text-davinci-003 等")
@@ -385,7 +385,7 @@ func (w *ConfigWizard) inputCustomModel(cfg *config.ProviderConfig) (string, err
 	return strings.TrimSpace(customModel), nil
 }
 
-// configureGemini 配置 Gemini 提供商
+// configureGemini configures Gemini provider
 func (w *ConfigWizard) configureGemini(cfg *config.ProviderConfig) error {
 	pterm.DefaultHeader.Println("Gemini 配置")
 
@@ -442,7 +442,7 @@ func (w *ConfigWizard) configureGemini(cfg *config.ProviderConfig) error {
 	return nil
 }
 
-// configureGeminiCLI 配置 Gemini CLI 提供商
+// configureGeminiCLI configures Gemini CLI provider
 func (w *ConfigWizard) configureGeminiCLI(cfg *config.ProviderConfig) error {
 	pterm.DefaultHeader.Println("Gemini CLI 配置")
 
@@ -499,7 +499,7 @@ func (w *ConfigWizard) configureGeminiCLI(cfg *config.ProviderConfig) error {
 	return nil
 }
 
-// configureLanguage 配置語言偏好
+// configureLanguage configures language preference
 func (w *ConfigWizard) configureLanguage() error {
 	pterm.DefaultHeader.Println("語言設置")
 
@@ -533,7 +533,7 @@ func (w *ConfigWizard) configureLanguage() error {
 	return nil
 }
 
-// configureErrorTriggers 配置錯誤觸發器
+// configureErrorTriggers configures error triggers
 func (w *ConfigWizard) configureErrorTriggers() error {
 	pterm.DefaultHeader.Println("錯誤分析觸發器")
 	pterm.Info.Println("選擇哪些類型的錯誤應該觸發 AI 分析:")

@@ -49,7 +49,7 @@ func Add(entry Entry) error {
 	return mgr.Append(entry)
 }
 
-// Load 透過長駐管理器回傳現有歷史紀錄。
+// Load returns existing history records through persistent manager.
 func Load() (*History, error) {
 	mgr, err := getDefaultManager()
 	if err != nil {
@@ -58,7 +58,7 @@ func Load() (*History, error) {
 	return &History{Entries: mgr.Entries()}, nil
 }
 
-// Clear 透過管理器清空歷史檔案並保持檔案格式一致。
+// Clear clears history file through manager and maintains consistent file format.
 func Clear() error {
 	mgr, err := getDefaultManager()
 	if err != nil {
@@ -67,7 +67,7 @@ func Clear() error {
 	return mgr.Clear()
 }
 
-// Close 強制刷新並關閉預設歷史管理器，供 CLI 結束時釋放資源。
+// Close forces flush and closes default history manager for resource release when CLI ends.
 func Close() error {
 	if managerInst == nil {
 		return nil
