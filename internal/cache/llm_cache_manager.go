@@ -84,9 +84,9 @@ func (cm *LLMCacheManager) GetSuggestion(ctx context.Context, key LLMCacheKey) (
 		}
 	}
 
-	// 然後嘗試 LLM 緩存（相似度匹配）
+	// Then try LLM cache (similarity matching)
 	if suggestion, found := cm.llmCache.GetSuggestion(key); found {
-		// 提升到分層緩存
+		// Promote to layered cache
 		if content := cm.serializeSuggestion(suggestion); content != "" {
 			cm.layeredCache.Set(hashKey, content, 30*time.Minute)
 		}
@@ -98,7 +98,7 @@ func (cm *LLMCacheManager) GetSuggestion(ctx context.Context, key LLMCacheKey) (
 	return nil, false
 }
 
-// SetSuggestion 設置建議到所有適當的緩存層
+// SetSuggestion sets suggestion to all appropriate cache layers
 func (cm *LLMCacheManager) SetSuggestion(key LLMCacheKey, suggestion *llm.Suggestion) error {
 	if !cm.enabled {
 		return nil
@@ -138,7 +138,7 @@ func (cm *LLMCacheManager) GetCommand(ctx context.Context, key LLMCacheKey) (str
 
 	// 然後嘗試 LLM 緩存
 	if command, found := cm.llmCache.GetCommand(key); found {
-		// 提升到分層緩存
+		// Promote to layered cache
 		cm.layeredCache.Set(hashKey, command, time.Hour)
 		cm.recordHit()
 		return command, true
