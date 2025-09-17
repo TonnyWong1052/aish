@@ -7,18 +7,18 @@ import (
 	"time"
 )
 
-// Pipeline 處理管道，用於串聯多個處理階段
+// Pipeline processing pipeline for chaining multiple processing stages
 type Pipeline struct {
 	stages []PipelineStage
 	mu     sync.RWMutex
 	stats  PipelineStats
 }
 
-// PipelineStage 管道階段
+// PipelineStage pipeline stage
 type PipelineStage struct {
 	Name       string
 	Processor  func(ctx context.Context, data interface{}) (interface{}, error)
-	Parallel   bool // 是否可以並行處理
+	Parallel   bool // Whether parallel processing is possible
 	Timeout    time.Duration
 	MaxWorkers int
 	workerPool *WorkerPool

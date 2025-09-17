@@ -22,7 +22,7 @@ type TemplateCache struct {
 	stats     TemplateCacheStats
 }
 
-// TemplateCacheStats 模板緩存統計
+// TemplateCacheStats template cache statistics
 type TemplateCacheStats struct {
 	Hits      int64
 	Misses    int64
@@ -32,7 +32,7 @@ type TemplateCacheStats struct {
 	HitRate   float64
 }
 
-// NewTemplateCache 創建新的模板緩存
+// NewTemplateCache creates a new template cache
 func NewTemplateCache(maxSize int) *TemplateCache {
 	return &TemplateCache{
 		templates: make(map[string]CompiledTemplate),

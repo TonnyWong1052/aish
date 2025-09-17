@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// Task 表示一個可執行的任務
+// Task represents an executable task
 type Task struct {
 	ID       string
 	Payload  interface{}
@@ -16,7 +16,7 @@ type Task struct {
 	Callback func(result interface{}, err error)
 }
 
-// WorkerPool 工作池管理器
+// WorkerPool worker pool manager
 type WorkerPool struct {
 	workers     int
 	taskQueue   chan Task

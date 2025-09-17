@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// SystemMonitor 系統資源監控器
+// SystemMonitor system resource monitor
 type SystemMonitor struct {
 	mu         sync.RWMutex
 	running    bool
@@ -18,42 +18,42 @@ type SystemMonitor struct {
 	thresholds MonitorThresholds
 }
 
-// SystemStats 系統統計信息
+// SystemStats system statistics information
 type SystemStats struct {
-	// 內存統計
-	MemoryAlloc      uint64 `json:"memory_alloc"`       // 當前分配的內存
-	MemoryTotalAlloc uint64 `json:"memory_total_alloc"` // 總分配的內存
-	MemoryHeapAlloc  uint64 `json:"memory_heap_alloc"`  // 堆內存分配
-	MemoryHeapSys    uint64 `json:"memory_heap_sys"`    // 堆系統內存
-	MemoryStack      uint64 `json:"memory_stack"`       // 棧內存
+	// Memory statistics
+	MemoryAlloc      uint64 `json:"memory_alloc"`       // Currently allocated memory
+	MemoryTotalAlloc uint64 `json:"memory_total_alloc"` // Total allocated memory
+	MemoryHeapAlloc  uint64 `json:"memory_heap_alloc"`  // Heap memory allocation
+	MemoryHeapSys    uint64 `json:"memory_heap_sys"`    // Heap system memory
+	MemoryStack      uint64 `json:"memory_stack"`       // Stack memory
 
-	// 垃圾回收統計
-	GCRuns       uint32 `json:"gc_runs"`        // GC 運行次數
-	GCPauseTotal uint64 `json:"gc_pause_total"` // GC 總暫停時間
-	GCPauseLast  uint64 `json:"gc_pause_last"`  // 上次 GC 暫停時間
+	// Garbage collection statistics
+	GCRuns       uint32 `json:"gc_runs"`        // GC run count
+	GCPauseTotal uint64 `json:"gc_pause_total"` // Total GC pause time
+	GCPauseLast  uint64 `json:"gc_pause_last"`  // Last GC pause time
 
-	// 協程統計
-	NumGoroutine int `json:"num_goroutine"` // 協程數量
-	NumCPU       int `json:"num_cpu"`       // CPU 數量
+	// Goroutine statistics
+	NumGoroutine int `json:"num_goroutine"` // Goroutine count
+	NumCPU       int `json:"num_cpu"`       // CPU count
 
 	// 時間戳
 	Timestamp time.Time `json:"timestamp"`
 
-	// 歷史統計
+	// Historical statistics
 	PeakMemory     uint64  `json:"peak_memory"`
 	PeakGoroutines int     `json:"peak_goroutines"`
 	AvgMemory      float64 `json:"avg_memory"`
 	AvgGoroutines  float64 `json:"avg_goroutines"`
 }
 
-// MonitorCallback 監控回調函數
+// MonitorCallback monitoring callback function
 type MonitorCallback func(stats SystemStats)
 
-// MonitorThresholds 監控閾值
+// MonitorThresholds monitoring thresholds
 type MonitorThresholds struct {
-	MemoryMB       uint64 // 內存閾值（MB）
-	GoroutineCount int    // 協程數量閾值
-	GCPauseMS      uint64 // GC 暫停時間閾值（毫秒）
+	MemoryMB       uint64 // Memory threshold (MB)
+	GoroutineCount int    // Goroutine count threshold
+	GCPauseMS      uint64 // GC pause time threshold (milliseconds)
 }
 
 // AlertLevel 警告級別

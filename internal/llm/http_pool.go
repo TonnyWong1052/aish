@@ -8,25 +8,25 @@ import (
 	"time"
 )
 
-// HTTPPool 是一個高性能的 HTTP 客戶端連接池管理器
+// HTTPPool is a high-performance HTTP client connection pool manager
 type HTTPPool struct {
 	mu      sync.RWMutex
 	clients map[string]*http.Client
 	config  HTTPPoolConfig
 }
 
-// HTTPPoolConfig HTTP 連接池配置
+// HTTPPoolConfig HTTP connection pool configuration
 type HTTPPoolConfig struct {
-	MaxIdleConns          int           // 最大空閒連接數
-	MaxIdleConnsPerHost   int           // 每個主機最大空閒連接數
-	IdleConnTimeout       time.Duration // 空閒連接超時時間
-	TLSHandshakeTimeout   time.Duration // TLS 握手超時時間
-	ResponseHeaderTimeout time.Duration // 響應頭超時時間
-	RequestTimeout        time.Duration // 總請求超時時間
-	MaxRetries            int           // 最大重試次數
+	MaxIdleConns          int           // Maximum idle connections
+	MaxIdleConnsPerHost   int           // Maximum idle connections per host
+	IdleConnTimeout       time.Duration // Idle connection timeout
+	TLSHandshakeTimeout   time.Duration // TLS handshake timeout
+	ResponseHeaderTimeout time.Duration // Response header timeout
+	RequestTimeout        time.Duration // Total request timeout
+	MaxRetries            int           // Maximum retry count
 }
 
-// DefaultHTTPPoolConfig 返回默認的 HTTP 池配置
+// DefaultHTTPPoolConfig returns default HTTP pool configuration
 func DefaultHTTPPoolConfig() HTTPPoolConfig {
 	return HTTPPoolConfig{
 		MaxIdleConns:          100,

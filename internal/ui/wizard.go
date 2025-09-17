@@ -292,7 +292,7 @@ func (w *ConfigWizard) selectModelFromAPI(cfg *config.ProviderConfig) (string, e
 	allOptions := []string{}
 
 	if len(gptModels) > 0 {
-		pterm.Info.Printf("GPT 模型 (%d 個):\n", len(gptModels))
+		pterm.Info.Printf("GPT models (%d):\n", len(gptModels))
 		for _, model := range gptModels {
 			pterm.Printf("  • %s\n", model)
 			allOptions = append(allOptions, model)
