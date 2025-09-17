@@ -54,7 +54,7 @@ func (tc *TemplateCache) Get(name string) (CompiledTemplate, bool) {
 		return CompiledTemplate{}, false
 	}
 
-	// 更新訪問信息
+	// Update access information
 	tmpl.LastAccessed = time.Now()
 	tmpl.AccessCount++
 	tc.templates[name] = tmpl
@@ -65,12 +65,12 @@ func (tc *TemplateCache) Get(name string) (CompiledTemplate, bool) {
 	return tmpl, true
 }
 
-// Set 設置編譯後的模板
+// Set sets compiled template
 func (tc *TemplateCache) Set(name string, tmpl CompiledTemplate) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
 
-	// 檢查是否需要驅逐
+	// Check if eviction is needed
 	if len(tc.templates) >= tc.maxSize {
 		tc.evictLRU()
 	}
@@ -81,7 +81,7 @@ func (tc *TemplateCache) Set(name string, tmpl CompiledTemplate) {
 	tc.stats.Size = len(tc.templates)
 }
 
-// Delete 刪除模板
+// Delete removes template
 func (tc *TemplateCache) Delete(name string) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
@@ -90,7 +90,7 @@ func (tc *TemplateCache) Delete(name string) {
 	tc.stats.Size = len(tc.templates)
 }
 
-// Clear 清空所有模板
+// Clear removes all templates
 func (tc *TemplateCache) Clear() {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
@@ -99,7 +99,7 @@ func (tc *TemplateCache) Clear() {
 	tc.stats.Size = 0
 }
 
-// GetStats 獲取統計信息
+// GetStats retrieves statistics
 func (tc *TemplateCache) GetStats() TemplateCacheStats {
 	tc.mu.RLock()
 	defer tc.mu.RUnlock()
@@ -109,7 +109,7 @@ func (tc *TemplateCache) GetStats() TemplateCacheStats {
 	return stats
 }
 
-// evictLRU 驅逐最久未使用的模板
+// evictLRU evicts least recently used template
 func (tc *TemplateCache) evictLRU() {
 	if len(tc.templates) == 0 {
 		return
@@ -131,7 +131,7 @@ func (tc *TemplateCache) evictLRU() {
 	}
 }
 
-// updateHitRate 更新命中率
+// updateHitRate updates hit rate
 func (tc *TemplateCache) updateHitRate() {
 	total := tc.stats.Hits + tc.stats.Misses
 	if total > 0 {

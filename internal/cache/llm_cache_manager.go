@@ -10,17 +10,17 @@ import (
 	"powerful-cli/internal/llm"
 )
 
-// LLMCacheManager 統一管理所有 LLM 相關緩存
+// LLMCacheManager unified management of all LLM-related caches
 type LLMCacheManager struct {
-	layeredCache  *LayeredCache  // 分層緩存用於一般響應
-	llmCache      *LLMCache      // 專用 LLM 緩存用於相似度匹配
-	templateCache *TemplateCache // 模板緩存
+	layeredCache  *LayeredCache  // Layered cache for general responses
+	llmCache      *LLMCache      // Dedicated LLM cache for similarity matching
+	templateCache *TemplateCache // Template cache
 	enabled       bool
 	mu            sync.RWMutex
 	stats         CacheManagerStats
 }
 
-// CacheManagerStats 緩存管理器統計
+// CacheManagerStats cache manager statistics
 type CacheManagerStats struct {
 	LayeredStats  LayeredCacheStats
 	LLMStats      LLMCacheStats
@@ -30,7 +30,7 @@ type CacheManagerStats struct {
 	AvgLatency    time.Duration
 }
 
-// NewLLMCacheManager 創建新的 LLM 緩存管理器
+// NewLLMCacheManager creates a new LLM cache manager
 func NewLLMCacheManager(enabled bool) (*LLMCacheManager, error) {
 	if !enabled {
 		return &LLMCacheManager{
@@ -38,9 +38,9 @@ func NewLLMCacheManager(enabled bool) (*LLMCacheManager, error) {
 		}, nil
 	}
 
-	// 創建分層緩存
+	// Create layered cache
 	layeredConfig := DefaultLayeredCacheConfig()
-	layeredConfig.L1Capacity = 300 // 內存緩存 300 項
+	layeredConfig.L1Capacity = 300 // Memory cache 300 items
 	layeredConfig.L1DefaultTTL = 45 * time.Minute
 
 	layeredCache, err := NewLayeredCache(layeredConfig)
@@ -48,11 +48,11 @@ func NewLLMCacheManager(enabled bool) (*LLMCacheManager, error) {
 		return nil, err
 	}
 
-	// 創建專用 LLM 緩存
+	// Create dedicated LLM cache
 	llmCache := NewLLMCache(layeredCache.l2Cache, DefaultLLMCacheConfig())
 
-	// 創建模板緩存
-	templateCache := NewTemplateCache(200) // 200 個模板緩存
+	// Create template cache
+	templateCache := NewTemplateCache(200) // 200 template cache
 
 	return &LLMCacheManager{
 		layeredCache:  layeredCache,
@@ -62,7 +62,7 @@ func NewLLMCacheManager(enabled bool) (*LLMCacheManager, error) {
 	}, nil
 }
 
-// GetSuggestion 獲取建議，使用分層緩存策略
+// GetSuggestion retrieves suggestion using layered cache strategy
 func (cm *LLMCacheManager) GetSuggestion(ctx context.Context, key LLMCacheKey) (*llm.Suggestion, bool) {
 	if !cm.enabled {
 		return nil, false
@@ -75,7 +75,7 @@ func (cm *LLMCacheManager) GetSuggestion(ctx context.Context, key LLMCacheKey) (
 
 	cm.incrementRequests()
 
-	// 首先嘗試分層緩存（更快）
+	// First try layered cache (faster)
 	hashKey := key.Hash()
 	if content, found := cm.layeredCache.Get(hashKey); found {
 		if suggestion := cm.parseSuggestionFromContent(content); suggestion != nil {
