@@ -122,9 +122,9 @@ func (v *Validator) validateProviders(c *Config) {
 	for name, provider := range c.Providers {
 		fieldPrefix := fmt.Sprintf("providers.%s", name)
 
-		// 檢查提供商名稱是否支持
+		// Check if provider name is supported
 		if !supportedProviders[name] {
-			v.AddError(fieldPrefix, name, "不支持的提供商類型")
+			v.AddError(fieldPrefix, name, "unsupported provider type")
 			continue
 		}
 

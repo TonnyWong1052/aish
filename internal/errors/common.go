@@ -33,7 +33,7 @@ func ErrProviderConfigMissing(provider string) *AishError {
 
 // ErrProviderInitFailed provider initialization failed
 func ErrProviderInitFailed(provider string, cause error) *AishError {
-	return WrapError(cause, ErrProviderInit, fmt.Sprintf("提供商 '%s' 初始化失敗", provider)).
+	return WrapError(cause, ErrProviderInit, fmt.Sprintf("provider '%s' initialization failed", provider)).
 		WithContext("provider", provider)
 }
 

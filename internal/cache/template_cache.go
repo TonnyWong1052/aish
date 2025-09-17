@@ -43,7 +43,7 @@ func NewTemplateCache(maxSize int) *TemplateCache {
 	}
 }
 
-// Get 獲取編譯後的模板
+// Get retrieves compiled template
 func (tc *TemplateCache) Get(name string) (CompiledTemplate, bool) {
 	tc.mu.Lock()
 	defer tc.mu.Unlock()
