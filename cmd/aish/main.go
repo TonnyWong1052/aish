@@ -99,7 +99,7 @@ var captureCmd = &cobra.Command{
 		}
 
 		presenter := ui.NewPresenter()
-		presenter.ShowLoading("Generate command animate[as aish -p also has it]")
+		presenter.ShowLoading("Generating command...")
 
 		suggestion, err := provider.GetSuggestion(context.Background(), llm.CapturedContext{
 			Command:  commandStr,
@@ -167,7 +167,7 @@ func runPromptLogic(promptStr string) {
 	}
 
 	presenter := ui.NewPresenter()
-	presenter.ShowLoading("Generate command animate[as aish -p also has it]")
+	presenter.ShowLoading("Generating command...")
 
 	cmdText, err := provider.GenerateCommand(context.Background(), promptStr, effectiveLanguage(cfg))
 	if err != nil || strings.TrimSpace(cmdText) == "" {
@@ -207,7 +207,7 @@ func runPromptLogic(promptStr string) {
 		}
 
 		// 以新輸入作為提示重新產生指令
-		presenter.ShowLoading("Generate command animate[as aish -p also has it]")
+		presenter.ShowLoading("Generating new command...")
 		cmdText, err := provider.GenerateCommand(context.Background(), userInput, effectiveLanguage(cfg))
 		if err != nil || strings.TrimSpace(cmdText) == "" {
 			presenter.StopLoading(false)
