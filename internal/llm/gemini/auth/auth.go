@@ -16,8 +16,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
-	"time"
+    "sync"
+    "time"
 )
 
 // Google OAuth 公開客戶端（用於桌面/本地應用）－固定值
@@ -42,8 +42,21 @@ var (
 	// Global cache to avoid re-reading the file on every command
 	tokenCache *stateCache
 	// Mutex to protect cache and file operations from race conditions
-	mu sync.Mutex
+    mu sync.Mutex
 )
+
+// refreshThreshold returns the proactive refresh window. If the token will
+// expire within this duration, we attempt a refresh. Default is 2 hours, and
+// can be overridden via env var AISH_GEMINI_REFRESH_THRESHOLD (e.g. "90m", "2h").
+func refreshThreshold() time.Duration {
+    v := strings.TrimSpace(os.Getenv("AISH_GEMINI_REFRESH_THRESHOLD"))
+    if v != "" {
+        if d, err := time.ParseDuration(v); err == nil && d > 0 {
+            return d
+        }
+    }
+    return 2 * time.Hour
+}
 
 // EnsureValidToken is the main entry point. It checks the token's validity
 // using an efficient cache and delegates to `gemini-cli auth refresh` if necessary.
@@ -68,13 +81,13 @@ func EnsureValidToken(ctx context.Context) error {
 		return fmt.Errorf("auth: cannot stat oauth_creds.json: %v", err)
 	}
 
-	// If cache is valid (file hasn't changed), check expiry from cache
-	if tokenCache != nil && !info.ModTime().After(tokenCache.modTime) {
-		if time.Now().Add(5 * time.Minute).Before(tokenCache.expiry) {
-			// Token is still valid according to cache, no action needed
-			return nil
-		}
-	}
+    // If cache is valid (file hasn't changed), check expiry from cache
+    if tokenCache != nil && !info.ModTime().After(tokenCache.modTime) {
+        if time.Now().Add(refreshThreshold()).Before(tokenCache.expiry) {
+            // Token is still valid according to cache, no action needed
+            return nil
+        }
+    }
 
 	// --- Cache is invalid or token is expired, load fresh data from disk ---
 	creds, err := loadCredentials(credsPath)
@@ -88,10 +101,10 @@ func EnsureValidToken(ctx context.Context) error {
 		modTime: info.ModTime(),
 	}
 
-	// Check expiry again with the fresh data
-	if time.Now().Add(5 * time.Minute).Before(tokenCache.expiry) {
-		return nil // Token is valid
-	}
+    // Check expiry again with the fresh data
+    if time.Now().Add(refreshThreshold()).Before(tokenCache.expiry) {
+        return nil // Token is valid
+    }
 
 	// --- Token is confirmed將過期，嘗試自動刷新 ---
 	// 1) 優先使用本機 gemini-cli
@@ -195,24 +208,24 @@ func httpRefreshToken(credsPath string) error {
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(clientID) == "" {
-		return errors.New("unable to resolve OAuth client_id; configure GOOGLE_OAUTH_CLIENT_ID or ensure oauth_creds.json contains id_token")
-	}
-	if clientSecret == "" {
-		return errors.New("client_secret not configured for this OAuth client. Provide GOOGLE_OAUTH_CLIENT_SECRET or ~/.gemini/oauth_client.json, or refresh via gemini-cli.")
-	}
+    if strings.TrimSpace(clientID) == "" {
+        return errors.New("unable to resolve OAuth client_id; configure GOOGLE_OAUTH_CLIENT_ID or ensure oauth_creds.json contains id_token")
+    }
+    // Do not force client_secret here. Some public clients can refresh without a secret.
+    // If the token endpoint requires a secret, it will respond with a descriptive error
+    // which will be surfaced by formatTokenEndpointError below.
 
 	httpClient := &http.Client{Timeout: 20 * time.Second}
 
 	// 先嘗試符合用戶提供樣例的 JSON 請求體
-	jsonBody := map[string]any{
-		"client_id":     clientID,
-		"refresh_token": refresh,
-		"grant_type":    "refresh_token",
-	}
-	if clientSecret != "" {
-		jsonBody["client_secret"] = clientSecret
-	}
+    jsonBody := map[string]any{
+        "client_id":     clientID,
+        "refresh_token": refresh,
+        "grant_type":    "refresh_token",
+    }
+    if clientSecret != "" {
+        jsonBody["client_secret"] = clientSecret
+    }
 	jb, _ := json.Marshal(jsonBody)
 	req, _ := http.NewRequest("POST", tokenURL, bytes.NewReader(jb))
 	req.Header.Set("Content-Type", "application/json")
