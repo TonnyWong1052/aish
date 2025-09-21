@@ -1,0 +1,43 @@
+# Operating system
+.DS_Store
+
+# Go build outputs
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Go module/package caches
+.gocache/
+vendor/
+
+# Project binaries
+bin/
+cmd/aish/aish
+tools/gemini/token-refresher/token-refresher
+
+# Web bundles
+web-bundles/
+
+# Editors/IDEs
+.idea/
+.vscode/
+
+# Hidden directories (user request)
+.*/
+# Allow CI workflows
+!.github/
+!.github/**
+
+# Log files
+*.log
+
+# Swap files
+*.swp
+
+
+AGENTS.md
+.kilocodemodes
