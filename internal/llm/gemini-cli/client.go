@@ -73,7 +73,75 @@ func NewProvider(cfg config.ProviderConfig, pm *prompt.Manager) (llm.Provider, e
 }
 
 func init() {
-	llm.RegisterProvider("gemini-cli", NewProvider)
+    llm.RegisterProvider("gemini-cli", NewProvider)
+}
+
+// sanitizeToken normalizes common pasted formats into a raw OAuth token string.
+// Accepts inputs like:
+//   - "ya29.A0..." (raw token)
+//   - "Bearer ya29.A0..."
+//   - "Authorization: Bearer ya29.A0..."
+//   - "Access Token: ya29.A0..."
+// and returns only the bare token value.
+func sanitizeToken(s string) string {
+    s = strings.TrimSpace(s)
+    // Strip surrounding quotes if present
+    s = strings.Trim(s, "\"'")
+    lower := strings.ToLower(s)
+    switch {
+    case strings.HasPrefix(lower, "authorization: bearer "):
+        s = strings.TrimSpace(s[len("Authorization: Bearer "):])
+    case strings.HasPrefix(lower, "bearer "):
+        s = strings.TrimSpace(s[len("Bearer "):])
+    case strings.HasPrefix(lower, "access token:"):
+        s = strings.TrimSpace(s[len("Access Token:"):])
+    }
+    // Final trim
+    return strings.TrimSpace(s)
+}
+
+// buildCloudCodeRequestBody builds the JSON payload to match the user's working sample.
+// It includes model, project, request.contents and the tools.functionDeclarations schema.
+func buildCloudCodeRequestBody(message, model, project string) map[string]any {
+    if strings.TrimSpace(model) == "" {
+        model = "gemini-2.5-flash"
+    }
+    return map[string]any{
+        "model":   model,
+        "project": project,
+        "request": map[string]any{
+            "contents": []map[string]any{
+                {
+                    "role":  "user",
+                    "parts": []map[string]string{{"text": message}},
+                },
+            },
+            "tools": []map[string]any{
+                {
+                    "functionDeclarations": []map[string]any{
+                        {
+                            "name":        "get_current_weather",
+                            "description": "Get the current weather in a given location",
+                            "parametersJsonSchema": map[string]any{
+                                "type": "OBJECT",
+                                "properties": map[string]any{
+                                    "location": map[string]any{
+                                        "type":        "STRING",
+                                        "description": "The city and state, e.g. San Francisco, CA",
+                                    },
+                                    "unit": map[string]any{
+                                        "type": "STRING",
+                                        "enum": []string{"celsius", "fahrenheit"},
+                                    },
+                                },
+                                "required": []string{"location"},
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    }
 }
 
 // GetSuggestion implements the llm.Provider interface using HTTP API.
@@ -391,20 +459,9 @@ func (p *GeminiCLIProvider) generateContentHTTP(ctx context.Context, message str
 		return "", fmt.Errorf("failed to get OAuth token: %w", err)
 	}
 
-	doReq := func(model string) (string, int, string, error) {
-		// Build request body (match simplified reference shape: model, project, request.contents)
-		body := map[string]any{
-			"model":   model,
-			"project": p.cfg.Project,
-			"request": map[string]any{
-				"contents": []map[string]any{
-					{
-						"role":  "user",
-						"parts": []map[string]string{{"text": message}},
-					},
-				},
-			},
-		}
+    doReq := func(model string) (string, int, string, error) {
+        // Build request body to match user's working sample, including tools
+        body := buildCloudCodeRequestBody(message, model, p.cfg.Project)
 
 		jsonBody, err := json.Marshal(body)
 		if err != nil {
@@ -532,19 +589,8 @@ func (p *GeminiCLIProvider) generateContentCURL(ctx context.Context, message str
 		return "", fmt.Errorf("failed to get OAuth token: %w", err)
 	}
 
-	// Construct body (simplified version, consistent with your latest reference)
-	body := map[string]any{
-		"model":   p.cfg.Model,
-		"project": p.cfg.Project,
-		"request": map[string]any{
-			"contents": []map[string]any{
-				{
-					"role":  "user",
-					"parts": []map[string]string{{"text": message}},
-				},
-			},
-		},
-	}
+    // Construct body to match user's working sample (includes tools)
+    body := buildCloudCodeRequestBody(message, p.cfg.Model, p.cfg.Project)
 	jb, _ := json.Marshal(body)
 
 	if _, err := exec.LookPath("curl"); err != nil {
@@ -671,10 +717,10 @@ func findKnownTextFields(v any) (string, bool) {
 
 // getBearerToken allows environment variable override (exactly consistent with token used in cURL testing)
 func (p *GeminiCLIProvider) getBearerToken(ctx context.Context) (string, error) {
-	if s := strings.TrimSpace(os.Getenv("AISH_GEMINI_BEARER")); s != "" {
-		return s, nil
-	}
-	return p.getOAuthToken()
+    if s := strings.TrimSpace(os.Getenv("AISH_GEMINI_BEARER")); s != "" {
+        return sanitizeToken(s), nil
+    }
+    return p.getOAuthToken()
 }
 
 // generateContentCLI uses gemini-cli command as fallback
@@ -746,7 +792,7 @@ func (p *GeminiCLIProvider) getOAuthToken() (string, error) {
     // Fallback: access_token 檔案
     accessTokenPath := path.Join(home, ".gemini", "access_token")
     if data, err := os.ReadFile(accessTokenPath); err == nil {
-        token := strings.TrimSpace(string(data))
+        token := sanitizeToken(strings.TrimSpace(string(data)))
         if token != "" {
             if shouldDebug() { fmt.Fprintln(os.Stderr, "DEBUG aish/gemini-cli token_source=access_token file") }
             return token, nil

@@ -303,16 +303,8 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 	// 3) Credentials/Project input
 	switch selProvider {
 	case "openai":
-		// Ask about legacy endpoint *after* setting the endpoint URL
-		omitV1, err := pterm.DefaultInteractiveConfirm.
-			WithDefaultValue(pc.OmitV1Prefix).
-			Show("Is this a legacy endpoint that omits the /v1 prefix (e.g., GitHub Copilot)?")
-		if err == nil {
-			pc.OmitV1Prefix = omitV1
-			if !omitV1 {
-				pterm.Info.Println("The /v1 path will be automatically appended for standard API calls.")
-			}
-		}
+		// 自動判斷是否需要省略 /v1 前綴（若端點路徑已包含 /v* 則不再追加）
+		pc.OmitV1Prefix = shouldOmitV1(pc.APIEndpoint)
 
 		// API Key (masked)
 		pterm.Println("OpenAI API key (leave empty to skip):")
@@ -562,7 +554,23 @@ func hideIfSet(v string) string {
 
 // isInteractiveTTY checks if in interactive TTY environment
 func isInteractiveTTY() bool {
-	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+    return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
+}
+
+// shouldOmitV1 returns true when the given endpoint already embeds a version-like
+// path segment (e.g., /v, /v1, /v1beta, /v1internal), in which case we should not
+// auto-append /v1 again.
+func shouldOmitV1(endpoint string) bool {
+    e := strings.TrimSpace(strings.ToLower(endpoint))
+    // Normalize trailing slash for checks
+    e = strings.TrimSuffix(e, "/")
+    // Heuristic: if the path already contains a version segment starting with '/v'
+    // we avoid appending '/v1'. This covers '/v', '/v1', '/v1beta', '/v1internal', etc.
+    // It also works with many proxy endpoints like '.../v'.
+    // Safe default when path has no '/v' segment: return false (we will manage '/v1').
+    // Note: We intentionally keep this heuristic simple to avoid overfitting.
+    // If later runtime detection finds otherwise, provider-level fallback will handle it.
+    return strings.Contains(e, "/v")
 }
 
 // plainConfigureWizard provides a plain text configuration flow that doesn't depend on TUI
@@ -629,16 +637,8 @@ func plainConfigureWizard(cfg *config.Config) error {
 	// --- Credentials / Project ---
 	switch prov {
 	case "openai":
-		// Ask about legacy endpoint in plain text mode as well
-    fmt.Print("Q: Is this a legacy endpoint that omits the /v1 prefix? (y/N)\n\nA: ")
-		yn, _ := reader.ReadString('\n')
-		yn = strings.TrimSpace(strings.ToLower(yn))
-		if yn == "y" || yn == "yes" {
-			pc.OmitV1Prefix = true
-		} else {
-			pc.OmitV1Prefix = false
-			fmt.Println("Info: The /v1 path will be automatically appended for standard API calls.")
-		}
+		// 自動判斷是否需要省略 /v1 前綴（若端點路徑已包含 /v* 則不再追加）
+		pc.OmitV1Prefix = shouldOmitV1(pc.APIEndpoint)
 		fmt.Println()
 
         fmt.Println("Q: OpenAI API key (leave empty to skip)")

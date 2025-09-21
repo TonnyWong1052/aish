@@ -1,16 +1,15 @@
 package ui
 
 import (
-	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"strconv"
-	"strings"
-	"time"
+    "context"
+    "fmt"
+    "strconv"
+    "strings"
 
-	"github.com/TonnyWong1052/aish/internal/config"
-	"github.com/TonnyWong1052/aish/internal/errors"
+    "github.com/TonnyWong1052/aish/internal/config"
+    "github.com/TonnyWong1052/aish/internal/errors"
+    "github.com/TonnyWong1052/aish/internal/llm/openai"
+    "github.com/TonnyWong1052/aish/internal/prompt"
 
 	"github.com/pterm/pterm"
 )
@@ -126,7 +125,7 @@ func (w *ConfigWizard) configureProvider() error {
 
 // configureOpenAI configures OpenAI provider
 func (w *ConfigWizard) configureOpenAI(cfg *config.ProviderConfig) error {
-	pterm.DefaultHeader.Println("OpenAI Configuration")
+    pterm.DefaultHeader.Println("OpenAI Configuration")
 
 	// API endpoint
 	defaultEndpoint := "https://api.openai.com/v1"
@@ -147,8 +146,11 @@ func (w *ConfigWizard) configureOpenAI(cfg *config.ProviderConfig) error {
 		cfg.APIEndpoint = defaultEndpoint
 	}
 
-	// API key
-	pterm.Info.Println("You can get your API key at https://platform.openai.com/api-keys")
+    // 自動判斷是否需要省略 /v1 前綴（若端點路徑已包含 /v* 則不再追加）
+    cfg.OmitV1Prefix = shouldOmitV1(cfg.APIEndpoint)
+
+    // API key
+    pterm.Info.Println("You can get your API key at https://platform.openai.com/api-keys")
 	apiKey, _ := pterm.DefaultInteractiveTextInput.
 		WithMask("*").
 		WithDefaultValue(cfg.APIKey).
@@ -203,90 +205,43 @@ func (w *ConfigWizard) configureOpenAIModel(cfg *config.ProviderConfig) error {
 
 // selectModelFromAPI fetches and selects model from API
 func (w *ConfigWizard) selectModelFromAPI(cfg *config.ProviderConfig) (string, error) {
-	if cfg.APIKey == "" || cfg.APIKey == "YOUR_OPENAI_API_KEY" {
-		return "", fmt.Errorf("valid API key required to fetch model list")
-	}
+    if cfg.APIKey == "" || cfg.APIKey == "YOUR_OPENAI_API_KEY" {
+        return "", fmt.Errorf("valid API key required to fetch model list")
+    }
 
-	pterm.Info.Println("Fetching available models from OpenAI API...")
+    pterm.Info.Println("Fetching available models from OpenAI API...")
 
-	// Create temporary OpenAI provider to fetch models
-	ctx := context.Background()
-	client := &http.Client{Timeout: 10 * time.Second}
+    // 交由 OpenAI provider 統一處理端點與回退
+    ctx := context.Background()
+    prov, err := openai.NewProvider(*cfg, (*prompt.Manager)(nil))
+    if err != nil {
+        return "", fmt.Errorf("failed to init provider: %w", err)
+    }
+    oai, ok := prov.(*openai.OpenAIProvider)
+    if !ok {
+        return "", fmt.Errorf("provider type mismatch")
+    }
+    models, err := oai.GetAvailableModels(ctx)
+    if err != nil {
+        return "", err
+    }
+    if len(models) == 0 {
+        return "", fmt.Errorf("no available models found")
+    }
 
-	apiURL := strings.TrimSuffix(cfg.APIEndpoint, "/") + "/models"
-	// Use POST by default, fallback to GET if server returns 405
-	postReq, err := http.NewRequestWithContext(ctx, "POST", apiURL, strings.NewReader("{}"))
-	if err != nil {
-		return "", fmt.Errorf("failed to create POST request: %w", err)
-	}
-	postReq.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-	postReq.Header.Set("Content-Type", "application/json")
+    // Group models by category
+    gptModels := []string{}
+    otherModels := []string{}
 
-	resp, err := client.Do(postReq)
-	if err != nil {
-		return "", fmt.Errorf("API request failed: %w", err)
-	}
+    for _, id := range models {
+        if strings.Contains(id, "gpt-") {
+            gptModels = append(gptModels, id)
+        } else {
+            otherModels = append(otherModels, id)
+        }
+    }
 
-	if resp.StatusCode == http.StatusMethodNotAllowed {
-		// Fallback to GET for endpoints that only support GET
-		resp.Body.Close()
-		getReq, gerr := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
-		if gerr != nil {
-			return "", fmt.Errorf("failed to create GET request: %w", gerr)
-		}
-		getReq.Header.Set("Authorization", "Bearer "+cfg.APIKey)
-		getReq.Header.Set("Content-Type", "application/json")
-		resp, err = client.Do(getReq)
-		if err != nil {
-			return "", fmt.Errorf("API request failed: %w", err)
-		}
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != 200 {
-		return "", fmt.Errorf("API returned error status code: %d", resp.StatusCode)
-	}
-
-	var modelsResp struct {
-		Object string `json:"object"`
-		Data   []struct {
-			ID      string `json:"id"`
-			Object  string `json:"object"`
-			Created int64  `json:"created"`
-			OwnedBy string `json:"owned_by"`
-		} `json:"data"`
-		Error *struct {
-			Message string `json:"message"`
-			Type    string `json:"type"`
-			Code    string `json:"code"`
-		} `json:"error,omitempty"`
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(&modelsResp); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	if modelsResp.Error != nil {
-		return "", fmt.Errorf("API error: %s", modelsResp.Error.Message)
-	}
-
-	if len(modelsResp.Data) == 0 {
-		return "", fmt.Errorf("no available models found")
-	}
-
-	// Group models by category
-	gptModels := []string{}
-	otherModels := []string{}
-
-	for _, model := range modelsResp.Data {
-		if strings.Contains(model.ID, "gpt-") {
-			gptModels = append(gptModels, model.ID)
-		} else {
-			otherModels = append(otherModels, model.ID)
-		}
-	}
-
-	pterm.Success.Printf("Found %d available models\n", len(modelsResp.Data))
+    pterm.Success.Printf("Found %d available models\n", len(models))
 
 	// Build options list
 	allOptions := []string{}
@@ -383,6 +338,13 @@ func (w *ConfigWizard) inputCustomModel(cfg *config.ProviderConfig) (string, err
     }
 
 	return strings.TrimSpace(customModel), nil
+}
+
+// shouldOmitV1 根據端點路徑是否已含 /v* 判定是否省略 /v1 自動附加
+func shouldOmitV1(endpoint string) bool {
+    e := strings.TrimSpace(strings.ToLower(endpoint))
+    e = strings.TrimSuffix(e, "/")
+    return strings.Contains(e, "/v")
 }
 
 // configureGemini configures Gemini provider
