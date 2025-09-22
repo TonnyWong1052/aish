@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"context"
 	"testing"
 	"time"
 )

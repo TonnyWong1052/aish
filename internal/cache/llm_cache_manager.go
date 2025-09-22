@@ -239,8 +239,8 @@ func (cm *LLMCacheManager) WarmUp(commonPrompts []string, provider, model string
 		return
 	}
 
-	// 預熱 LLM 緩存
-	cm.llmCache.WarmUp(commonPrompts, provider, model)
+	// LLM 緩存目前不支持直接預熱
+	// 可以通過模擬常見查詢來間接預熱
 
 	// 預熱分層緩存
 	var keys []string
