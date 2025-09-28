@@ -8,7 +8,13 @@
 
 ![AISH 演示](./demo/demo.gif)
 
-## 核心功能
+## 核心功能與架構
+
+AISH 與您的 shell 環境和 LLM 提供商整合，提供智能命令協助：
+
+![AISH 系統架構](./demo/system_architecture.png)
+
+### 主要功能
 
 -   **🤖 智能錯誤分析**：自動捕獲命令執行錯誤、提供 AI 驅動的錯誤分類與分析，並提供智能修正建議與解釋。
 -   **🔧 多 LLM 提供商支持**：支援多種 LLM 提供商，包括 OpenAI (GPT 系列)、Google Gemini (官方 API) 以及 Gemini CLI (Cloud Code 私有 API)。
@@ -16,15 +22,7 @@
 -   **📊 歷史追蹤與重放**：保存錯誤分析歷史、允許重新分析歷史錯誤，並包含清理歷史記錄的功能。
 -   **🎯 智能 Shell Hook**：自動整合到您的 shell (bash/zsh) 中，即時捕獲命令輸出和錯誤，提供無縫的 AI 協助而無需手動干預。
 
-## 系統架構
-
-以下圖表展示了 AISH 如何與您的 shell 環境和 LLM 提供商集成，以提供智能命令協助：
-
-![AISH 系統架構](./demo/system_architecture.png)
-
-### 架構概述
-
-AISH 由多個關鍵組件協同工作：
+### 系統組件
 
 - **🔗 Shell Hook**：自動捕獲終端中的命令執行和錯誤
 - **🧠 錯誤分類器**：智能分類不同類型的命令失敗
@@ -33,7 +31,7 @@ AISH 由多個關鍵組件協同工作：
 - **⚙️ 配置系統**：管理用戶偏好和提供商設置
 - **🛡️ 安全層**：在 AI 分析前自動遮蔽敏感信息
 
-## 安裝指南
+## 安裝與配置
 
 您可以透過三種方式安裝 AISH：使用 Homebrew（最簡單）、使用安裝腳本或手動從源碼構建。
 
@@ -222,44 +220,6 @@ Hook 包含一個智能錯誤分類系統，將不同類型的命令失敗進行
 - **⚡ 更快解決**：基於錯誤類別的更準確建議
 - **🔄 一致處理**：對常見錯誤模式的標準化方法
 
-## LLM 提供商配置
-
-AISH 支援多種 LLM 提供商。以下是推薦的配置：
-
-### 🚀 Gemini CLI（推薦）
-為了獲得最佳體驗，我們推薦使用 **Gemini CLI**，因為它提供：
-- **免費存取** Google 的 Gemini 模型
-- **無需 API 金鑰**（使用您的 Google 帳戶認證）
-- **更高的速率限制**，相比官方 API
-- **更好的整合** 與 Google 生態系統
-
-設置 Gemini CLI：
-```bash
-# 安裝 Gemini CLI（如果尚未安裝）
-# 請參考：https://github.com/google/generative-ai-cli
-
-# 配置 AISH 使用 Gemini CLI
-aish init
-# 當提示選擇 LLM 提供商時，選擇 "gemini-cli"
-```
-
-### 🔑 替代方案：官方 Gemini API
-如果您偏好官方 API：
-```bash
-# 從以下網址獲取您的 API 金鑰：https://aistudio.google.com/app/apikey
-aish init
-# 當提示選擇 LLM 提供商時，選擇 "gemini"
-# 當提示時輸入您的 API 金鑰
-```
-
-### 🤖 OpenAI GPT（替代方案）
-對於 OpenAI 用戶：
-```bash
-aish init
-# 當提示選擇 LLM 提供商時，選擇 "openai"
-# 當提示時輸入您的 OpenAI API 金鑰
-```
-
 ### 3. 手動安裝
 
 如果您偏好手動構建與安裝：
@@ -278,7 +238,39 @@ mv aish ~/bin
 aish init
 ```
 
-## 實際演示
+### LLM 提供商配置
+
+安裝完成後，配置 AISH 使用您偏好的 LLM 提供商：
+
+```bash
+# 初始化 AISH 配置
+aish init
+```
+
+#### 🚀 Gemini CLI（推薦）
+- **免費存取** Google 的 Gemini 模型
+- **無需 API 金鑰**（使用您的 Google 帳戶驗證）
+- **更高的速率限制** 相比官方 API
+
+```bash
+# 安裝 Gemini CLI: https://github.com/google/generative-ai-cli
+aish init  # 選擇 "gemini-cli" 當提示時
+```
+
+#### 🔑 替代方案：官方 Gemini API
+```bash
+# 取得 API 金鑰: https://aistudio.google.com/app/apikey
+aish init  # 選擇 "gemini" 並輸入您的 API 金鑰
+```
+
+#### 🤖 OpenAI GPT（替代方案）
+```bash
+aish init  # 選擇 "openai" 並輸入您的 API 金鑰
+```
+
+設定精靈將引導您完成提供商選擇、API 金鑰設定和 shell hook 安裝。
+
+## 使用與範例
 
 體驗 AISH 的強大功能，看看這些真實使用場景：
 
@@ -405,34 +397,6 @@ $ ^C  # Ctrl+C 中斷
 $ ^\  # Ctrl+\ 終止
 $ aish capture  # AISH 自己的命令
 ```
-
-## 快速開始
-
--   **錯誤捕獲（自動觸發）**：當命令執行失敗時，AISH 會自動分析錯誤並提供建議。
-    ```bash
-    # 執行一個錯誤的命令
-    ls /nonexistent
-    # AISH 將自動分析並提供修正建議。
-    ```
--   **自然語言命令**：使用 `-p` 參數從自然語言生成命令。
-    ```bash
-    aish -p "列出當前目錄中的所有文件"
-    aish -p "查找所有 .go 文件"
-    ```
-
-## 配置
-
-安裝完成後，您需要配置 AISH 選擇您偏好的 LLM 提供商：
-
-```bash
-# 初始化 AISH 配置
-aish init
-```
-
-這將引導您完成：
-- 選擇您的 LLM 提供商（Gemini CLI、Gemini API 或 OpenAI）
-- 設定 API 金鑰（如需要）
-- 安裝 shell hook 以自動捕獲錯誤
 
 ## 使用
 

@@ -95,7 +95,7 @@ func NewProcessingCoordinator() *ProcessingCoordinator {
 func (pc *ProcessingCoordinator) ProcessAIRequest(
 	ctx context.Context,
 	provider llm.Provider,
-	context llm.CapturedContext,
+	capturedContext llm.CapturedContext,
 	language string,
 	callback func(*llm.Suggestion, error),
 ) string {
@@ -106,7 +106,7 @@ func (pc *ProcessingCoordinator) ProcessAIRequest(
 		Priority: 5, // 中等優先級
 		Payload: AITaskPayload{
 			Provider:    provider,
-			Context:     context,
+			Context:     capturedContext,
 			Language:    language,
 			RequestType: "suggestion",
 		},

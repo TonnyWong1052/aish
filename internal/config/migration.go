@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/TonnyWong1052/aish/internal/errors"
+	aerrors "github.com/TonnyWong1052/aish/internal/errors"
 )
 
 // ConfigVersion configuration version constants
@@ -60,9 +60,9 @@ func NewMigrator(configPath string) *Migrator {
 // LoadWithMigration loads configuration and performs migration if needed
 func LoadWithMigration() (*Config, *MigrationResult, error) {
 	path, err := GetConfigPath()
-	if err != nil {
-		return nil, nil, errors.ErrConfigLoadFailed(path, err)
-	}
+    if err != nil {
+        return nil, nil, aerrors.ErrConfigLoadFailed(path, err)
+    }
 
 	migrator := NewMigrator(path)
 	return migrator.LoadAndMigrate()
@@ -86,9 +86,9 @@ func (m *Migrator) LoadAndMigrate() (*Config, *MigrationResult, error) {
 
 	// 讀取現有配置
 	data, err := os.ReadFile(m.configPath)
-	if err != nil {
-		return nil, nil, errors.ErrConfigLoadFailed(m.configPath, err)
-	}
+    if err != nil {
+        return nil, nil, aerrors.ErrConfigLoadFailed(m.configPath, err)
+    }
 
 	// 嘗試解析帶版本的配置
 	var versionedConfig VersionedConfig
@@ -101,9 +101,9 @@ func (m *Migrator) LoadAndMigrate() (*Config, *MigrationResult, error) {
 	if versionedConfig.Version == CurrentVersion {
 		// 配置已是最新版本，直接加載
 		var cfg Config
-		if err := json.Unmarshal(versionedConfig.Data, &cfg); err != nil {
-			return nil, nil, errors.ErrConfigLoadFailed(m.configPath, err)
-		}
+        if err := json.Unmarshal(versionedConfig.Data, &cfg); err != nil {
+            return nil, nil, aerrors.ErrConfigLoadFailed(m.configPath, err)
+        }
 		return &cfg, nil, nil
 	}
 
@@ -118,9 +118,9 @@ func (m *Migrator) migrateFromLegacy(data []byte) (*Config, *MigrationResult, er
 	if err := json.Unmarshal(data, &legacyCfg); err != nil {
 		// 如果仍然失敗，可能是新格式但沒有版本信息
 		var cfg Config
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			return nil, nil, errors.ErrConfigLoadFailed(m.configPath, err)
-		}
+        if err := json.Unmarshal(data, &cfg); err != nil {
+            return nil, nil, aerrors.ErrConfigLoadFailed(m.configPath, err)
+        }
 		// 添加缺失的版本信息並保存
 		cfg.UserPreferences.Logging = LoggingConfig{
 			Level:      "info",
@@ -194,9 +194,9 @@ func (m *Migrator) migrate(versionedConfig VersionedConfig) (*Config, *Migration
 
 	// 解析當前配置
 	var cfg Config
-	if err := json.Unmarshal(versionedConfig.Data, &cfg); err != nil {
-		return nil, nil, errors.ErrConfigLoadFailed(m.configPath, err)
-	}
+    if err := json.Unmarshal(versionedConfig.Data, &cfg); err != nil {
+        return nil, nil, aerrors.ErrConfigLoadFailed(m.configPath, err)
+    }
 
 	// 根據版本執行相應的遷移邏輯
 	switch fromVersion {
@@ -219,8 +219,8 @@ func (m *Migrator) migrate(versionedConfig VersionedConfig) (*Config, *Migration
 		// 未來版本的遷移邏輯
 		// 目前 ConfigVersion2 就是最新版本，無需額外遷移
 
-	default:
-		return nil, nil, errors.NewError(errors.ErrConfigValidation, fmt.Sprintf("不支持的配置版本: %s", fromVersion))
+    default:
+        return nil, nil, aerrors.NewError(aerrors.ErrConfigValidation, fmt.Sprintf("不支持的配置版本: %s", fromVersion))
 	}
 
 	// 保存遷移後的配置
@@ -241,15 +241,15 @@ func (m *Migrator) migrate(versionedConfig VersionedConfig) (*Config, *Migration
 // saveVersionedConfig 保存帶版本的配置
 func (m *Migrator) saveVersionedConfig(cfg *Config, version string) error {
 	// 確保配置目錄存在
-	if err := os.MkdirAll(filepath.Dir(m.configPath), 0755); err != nil {
-		return errors.ErrConfigSaveFailed(m.configPath, err)
-	}
+    if err := os.MkdirAll(filepath.Dir(m.configPath), 0755); err != nil {
+        return aerrors.ErrConfigSaveFailed(m.configPath, err)
+    }
 
 	// 序列化配置數據
 	configData, err := json.MarshalIndent(cfg, "", "  ")
-	if err != nil {
-		return errors.ErrConfigSaveFailed(m.configPath, err)
-	}
+    if err != nil {
+        return aerrors.ErrConfigSaveFailed(m.configPath, err)
+    }
 
 	// 創建帶版本的配置結構
 	versionedConfig := VersionedConfig{
@@ -259,9 +259,9 @@ func (m *Migrator) saveVersionedConfig(cfg *Config, version string) error {
 
 	// 序列化完整的配置
 	data, err := json.MarshalIndent(versionedConfig, "", "  ")
-	if err != nil {
-		return errors.ErrConfigSaveFailed(m.configPath, err)
-	}
+    if err != nil {
+        return aerrors.ErrConfigSaveFailed(m.configPath, err)
+    }
 
 	// 寫入文件
 	return os.WriteFile(m.configPath, data, 0644)
@@ -269,9 +269,9 @@ func (m *Migrator) saveVersionedConfig(cfg *Config, version string) error {
 
 // createBackup 創建配置文件備份
 func (m *Migrator) createBackup() (string, error) {
-	if _, err := os.Stat(m.configPath); os.IsNotExist(err) {
-		return "", nil // 文件不存在，無需備份
-	}
+    if _, err := os.Stat(m.configPath); os.IsNotExist(err) {
+        return "", nil // 文件不存在，無需備份
+    }
 
 	// 生成備份文件名
 	dir := filepath.Dir(m.configPath)
@@ -288,14 +288,14 @@ func (m *Migrator) createBackup() (string, error) {
 	}
 
 	// 複製文件
-	data, err := os.ReadFile(m.configPath)
-	if err != nil {
-		return "", errors.ErrFileSystemError("backup_read", m.configPath, err)
-	}
+    data, err := os.ReadFile(m.configPath)
+    if err != nil {
+        return "", aerrors.ErrFileSystemError("backup_read", m.configPath, err)
+    }
 
-	if err := os.WriteFile(backupPath, data, 0644); err != nil {
-		return "", errors.ErrFileSystemError("backup_write", backupPath, err)
-	}
+    if err := os.WriteFile(backupPath, data, 0644); err != nil {
+        return "", aerrors.ErrFileSystemError("backup_write", backupPath, err)
+    }
 
 	return backupPath, nil
 }

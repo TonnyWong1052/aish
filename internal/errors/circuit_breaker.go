@@ -59,16 +59,16 @@ func DefaultCircuitBreakerConfig() *CircuitBreakerConfig {
 
 // CircuitBreaker 斷路器實現
 type CircuitBreaker struct {
-	config    *CircuitBreakerConfig
-	state     CircuitState
-	failures  int
-	successes int
-	requests  int
+	config          *CircuitBreakerConfig
+	state           CircuitState
+	failures        int
+	successes       int
+	requests        int
 	lastFailureTime time.Time
-	mu        sync.RWMutex
-	
+	mu              sync.RWMutex
+
 	// 統計窗口
-	window []bool // true = success, false = failure
+	window      []bool // true = success, false = failure
 	windowIndex int
 }
 
@@ -77,7 +77,7 @@ func NewCircuitBreaker(config *CircuitBreakerConfig) *CircuitBreaker {
 	if config == nil {
 		config = DefaultCircuitBreakerConfig()
 	}
-	
+
 	return &CircuitBreaker{
 		config: config,
 		state:  StateClosed,
@@ -91,13 +91,13 @@ func (cb *CircuitBreaker) Execute(ctx context.Context, fn RetryableFunc) error {
 	if !cb.canExecute() {
 		return NewError(ErrTimeout, fmt.Sprintf("斷路器處於 %s 狀態，拒絕執行", cb.state))
 	}
-	
+
 	// 執行操作
 	err := fn(ctx)
-	
+
 	// 記錄結果
 	cb.recordResult(err == nil)
-	
+
 	return err
 }
 
@@ -105,7 +105,7 @@ func (cb *CircuitBreaker) Execute(ctx context.Context, fn RetryableFunc) error {
 func (cb *CircuitBreaker) canExecute() bool {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	switch cb.state {
 	case StateClosed:
 		return true
@@ -128,12 +128,12 @@ func (cb *CircuitBreaker) canExecute() bool {
 func (cb *CircuitBreaker) recordResult(success bool) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
-	
+
 	// 更新統計窗口
 	cb.window[cb.windowIndex] = success
 	cb.windowIndex = (cb.windowIndex + 1) % cb.config.WindowSize
 	cb.requests++
-	
+
 	if success {
 		cb.successes++
 		cb.onSuccess()
@@ -172,17 +172,17 @@ func (cb *CircuitBreaker) shouldOpen() bool {
 	if cb.requests < cb.config.MinRequests {
 		return false
 	}
-	
+
 	// 計算窗口內的失敗率
 	failureCount := 0
 	windowRequests := min(cb.requests, cb.config.WindowSize)
-	
+
 	for i := 0; i < windowRequests; i++ {
 		if !cb.window[i] {
 			failureCount++
 		}
 	}
-	
+
 	return failureCount >= cb.config.FailureThreshold
 }
 
@@ -208,11 +208,11 @@ func (cb *CircuitBreaker) GetState() CircuitState {
 func (cb *CircuitBreaker) GetStats() CircuitBreakerStats {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
-	
+
 	failureCount := 0
 	successCount := 0
 	windowRequests := min(cb.requests, cb.config.WindowSize)
-	
+
 	for i := 0; i < windowRequests; i++ {
 		if cb.window[i] {
 			successCount++
@@ -220,7 +220,7 @@ func (cb *CircuitBreaker) GetStats() CircuitBreakerStats {
 			failureCount++
 		}
 	}
-	
+
 	return CircuitBreakerStats{
 		State:           cb.state,
 		Failures:        failureCount,
@@ -278,11 +278,11 @@ func (cb *CircuitBreaker) ExecuteWithRetry(
 	retryConfig *RetryConfig,
 ) *RetryResult {
 	retryManager := NewRetryManager(retryConfig)
-	
+
 	wrappedFn := func(ctx context.Context) error {
 		return cb.Execute(ctx, fn)
 	}
-	
+
 	return retryManager.Execute(ctx, wrappedFn)
 }
 
@@ -297,8 +297,8 @@ func min(a, b int) int {
 // IsCircuitBreakerError 檢查是否為斷路器錯誤
 func IsCircuitBreakerError(err error) bool {
 	if aishErr, ok := GetAishError(err); ok {
-		return aishErr.Code == ErrTimeout && 
-			len(aishErr.Message) > 0 && 
+		return aishErr.Code == ErrTimeout &&
+			len(aishErr.Message) > 0 &&
 			aishErr.Message[0:2] == "斷路器"
 	}
 	return false
@@ -321,11 +321,11 @@ func NewCircuitBreakerManager() *CircuitBreakerManager {
 func (m *CircuitBreakerManager) GetOrCreate(name string, config *CircuitBreakerConfig) *CircuitBreaker {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if breaker, exists := m.breakers[name]; exists {
 		return breaker
 	}
-	
+
 	breaker := NewCircuitBreaker(config)
 	m.breakers[name] = breaker
 	return breaker
@@ -335,7 +335,7 @@ func (m *CircuitBreakerManager) GetOrCreate(name string, config *CircuitBreakerC
 func (m *CircuitBreakerManager) Get(name string) (*CircuitBreaker, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	breaker, exists := m.breakers[name]
 	return breaker, exists
 }
@@ -344,7 +344,7 @@ func (m *CircuitBreakerManager) Get(name string) (*CircuitBreaker, bool) {
 func (m *CircuitBreakerManager) GetAllStats() map[string]CircuitBreakerStats {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	stats := make(map[string]CircuitBreakerStats)
 	for name, breaker := range m.breakers {
 		stats[name] = breaker.GetStats()
@@ -356,7 +356,7 @@ func (m *CircuitBreakerManager) GetAllStats() map[string]CircuitBreakerStats {
 func (m *CircuitBreakerManager) Remove(name string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	delete(m.breakers, name)
 }
 
@@ -364,6 +364,6 @@ func (m *CircuitBreakerManager) Remove(name string) {
 func (m *CircuitBreakerManager) Clear() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	m.breakers = make(map[string]*CircuitBreaker)
 }

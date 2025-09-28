@@ -32,11 +32,11 @@ type RetryableFunc func(ctx context.Context) error
 
 // RetryResult 重試結果
 type RetryResult struct {
-	Success     bool          `json:"success"`
-	Attempts    int           `json:"attempts"`
-	LastError   error         `json:"last_error"`
-	TotalTime   time.Duration `json:"total_time"`
-	FirstError  error         `json:"first_error"`
+	Success    bool          `json:"success"`
+	Attempts   int           `json:"attempts"`
+	LastError  error         `json:"last_error"`
+	TotalTime  time.Duration `json:"total_time"`
+	FirstError error         `json:"first_error"`
 }
 
 // RetryManager 重試管理器
@@ -59,7 +59,7 @@ func (r *RetryManager) Execute(ctx context.Context, fn RetryableFunc) *RetryResu
 	result := &RetryResult{
 		Success: false,
 	}
-	
+
 	startTime := time.Now()
 	defer func() {
 		result.TotalTime = time.Since(startTime)
@@ -98,7 +98,7 @@ func (r *RetryManager) Execute(ctx context.Context, fn RetryableFunc) *RetryResu
 		// 如果不是最後一次嘗試，則等待
 		if attempt < r.config.MaxAttempts {
 			sleepTime := r.calculateDelay(delay, attempt)
-			
+
 			select {
 			case <-ctx.Done():
 				result.LastError = ctx.Err()
@@ -135,7 +135,7 @@ func (r *RetryManager) ExecuteWithCallback(
 	result := &RetryResult{
 		Success: false,
 	}
-	
+
 	startTime := time.Now()
 	defer func() {
 		result.TotalTime = time.Since(startTime)
@@ -179,7 +179,7 @@ func (r *RetryManager) ExecuteWithCallback(
 		// 如果不是最後一次嘗試，則等待
 		if attempt < r.config.MaxAttempts {
 			sleepTime := r.calculateDelay(delay, attempt)
-			
+
 			select {
 			case <-ctx.Done():
 				result.LastError = ctx.Err()
@@ -221,18 +221,18 @@ func (r *RetryManager) shouldRetry(err error) bool {
 // calculateDelay 計算延遲時間（包含可選的抖動）
 func (r *RetryManager) calculateDelay(baseDelay time.Duration, attempt int) time.Duration {
 	delay := baseDelay
-	
+
 	if r.config.Jitter {
 		// 添加 ±25% 的隨機抖動
 		jitterRange := float64(delay) * 0.25
 		jitter := (math.Pow(-1, float64(attempt)) * jitterRange) / 2
 		delay = time.Duration(float64(delay) + jitter)
 	}
-	
+
 	if delay < 0 {
 		delay = time.Millisecond * 100
 	}
-	
+
 	return delay
 }
 
@@ -253,11 +253,11 @@ func IsRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	if aishErr, ok := GetAishError(err); ok {
 		return aishErr.IsRetryable()
 	}
-	
+
 	return false
 }
 
@@ -278,10 +278,10 @@ func FormatRetryResult(result *RetryResult) string {
 		if result.Attempts == 1 {
 			return "操作成功完成"
 		}
-		return fmt.Sprintf("操作在 %d 次嘗試後成功完成（總時間: %v）", 
+		return fmt.Sprintf("操作在 %d 次嘗試後成功完成（總時間: %v）",
 			result.Attempts, result.TotalTime.Round(time.Millisecond))
 	}
 
-	return fmt.Sprintf("操作失敗，已嘗試 %d 次（總時間: %v）：%v", 
+	return fmt.Sprintf("操作失敗，已嘗試 %d 次（總時間: %v）：%v",
 		result.Attempts, result.TotalTime.Round(time.Millisecond), result.LastError)
 }

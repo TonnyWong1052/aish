@@ -8,7 +8,10 @@ import (
 )
 
 func TestGetHookCode(t *testing.T) {
-	hookCode := getHookCode()
+	hookCode, err := getHookCode()
+	if err != nil {
+		t.Fatalf("Failed to get hook code: %v", err)
+	}
 
 	// Check that hook code contains expected components
 	expectedComponents := []string{
@@ -26,7 +29,7 @@ func TestGetHookCode(t *testing.T) {
 			t.Errorf("Hook code missing expected component: %s", component)
 		}
 	}
-	
+
 	// Verify that Ctrl+C filtering is included
 	if !strings.Contains(hookCode, "130") || !strings.Contains(hookCode, "131") {
 		t.Error("Hook code missing Ctrl+C signal filtering")
@@ -51,7 +54,10 @@ func TestAddHookToFile(t *testing.T) {
 	}
 
 	// Add hook
-	hookCode := getHookCode()
+	hookCode, err := getHookCode()
+	if err != nil {
+		t.Fatalf("Failed to get hook code: %v", err)
+	}
 	err = addHookToFile(testFile, hookCode)
 	if err != nil {
 		t.Fatalf("Failed to add hook: %v", err)

@@ -27,7 +27,7 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22.x'
+          go-version: '1.23.x'
           cache: true
 
       - name: 顯示 Go 版本
@@ -53,7 +53,7 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22.x'
+          go-version: '1.23.x'
           cache: true
 
       - name: 檢查 gofmt（必須零差異）
@@ -80,7 +80,7 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22.x'
+          go-version: '1.23.x'
           cache: true
 
       - name: 下載相依
@@ -90,6 +90,24 @@ jobs:
         run: |
           set -euo pipefail
           go test ./... -race -covermode=atomic -coverprofile=coverage.out
+
+      - name: 覆蓋率門檻檢查（最低 60%）
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Coverage summary:" && go tool cover -func=coverage.out | tail -n 1 || true
+          MIN=60
+          ACTUAL=$(go tool cover -func=coverage.out | awk '/^total:/ { sub(/%/,"",$3); print $3 }')
+          if [[ -z "${ACTUAL:-}" ]]; then
+            echo "Failed to parse coverage from coverage.out"
+            exit 1
+          fi
+          PASS=$(awk -v a="$ACTUAL" -v m="$MIN" 'BEGIN { print (a+0 >= m+0) ? 1 : 0 }')
+          if [[ "$PASS" -ne 1 ]]; then
+            echo "Coverage ${ACTUAL}% is below target ${MIN}%"
+            exit 1
+          fi
+          echo "Coverage ${ACTUAL}% meets target ${MIN}%"
 
       - name: 上傳覆蓋率檔案
         if: always()
@@ -114,7 +132,7 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22.x'
+          go-version: '1.23.x'
           cache: true
 
       - name: 建置 CLI
@@ -135,4 +153,3 @@ jobs:
           path: |
             bin/
           retention-days: 7
-

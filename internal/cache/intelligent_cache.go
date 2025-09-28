@@ -12,53 +12,53 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TonnyWong1052/aish/internal/errors"
+	aerrors "github.com/TonnyWong1052/aish/internal/errors"
 )
 
 // IntelligentCache 智能快取系統，支援語義相似性檢測和智能預熱
 type IntelligentCache struct {
-	primaryCache   *Cache
-	semanticIndex  *SemanticIndex
-	prewarmer      *CachePrewarmer
-	analytics      *CacheAnalytics
-	config         *IntelligentCacheConfig
-	mu             sync.RWMutex
+	primaryCache  *Cache
+	semanticIndex *SemanticIndex
+	prewarmer     *CachePrewarmer
+	analytics     *CacheAnalytics
+	config        *IntelligentCacheConfig
+	mu            sync.RWMutex
 }
 
 // IntelligentCacheConfig 智能快取配置
 type IntelligentCacheConfig struct {
 	// 基礎快取設置
-	MaxSize          int           `json:"max_size"`
-	DefaultTTL       time.Duration `json:"default_ttl"`
-	CleanupInterval  time.Duration `json:"cleanup_interval"`
-	
+	MaxSize         int           `json:"max_size"`
+	DefaultTTL      time.Duration `json:"default_ttl"`
+	CleanupInterval time.Duration `json:"cleanup_interval"`
+
 	// 語義相似性設置
-	EnableSemantic       bool    `json:"enable_semantic"`
-	SimilarityThreshold  float64 `json:"similarity_threshold"`
-	MaxSimilarResults    int     `json:"max_similar_results"`
-	
+	EnableSemantic      bool    `json:"enable_semantic"`
+	SimilarityThreshold float64 `json:"similarity_threshold"`
+	MaxSimilarResults   int     `json:"max_similar_results"`
+
 	// 智能預熱設置
-	EnablePrewarming     bool          `json:"enable_prewarming"`
-	PrewarmingInterval   time.Duration `json:"prewarming_interval"`
-	PrewarmingBatchSize  int           `json:"prewarming_batch_size"`
-	
+	EnablePrewarming    bool          `json:"enable_prewarming"`
+	PrewarmingInterval  time.Duration `json:"prewarming_interval"`
+	PrewarmingBatchSize int           `json:"prewarming_batch_size"`
+
 	// 分析設置
-	EnableAnalytics      bool          `json:"enable_analytics"`
-	AnalyticsWindow      time.Duration `json:"analytics_window"`
-	
+	EnableAnalytics bool          `json:"enable_analytics"`
+	AnalyticsWindow time.Duration `json:"analytics_window"`
+
 	// 快取策略
-	EvictionPolicy       EvictionPolicy `json:"eviction_policy"`
-	CompressionEnabled   bool           `json:"compression_enabled"`
-	EncryptionEnabled    bool           `json:"encryption_enabled"`
+	EvictionPolicy     EvictionPolicy `json:"eviction_policy"`
+	CompressionEnabled bool           `json:"compression_enabled"`
+	EncryptionEnabled  bool           `json:"encryption_enabled"`
 }
 
 // EvictionPolicy 淘汰策略
 type EvictionPolicy string
 
 const (
-	EvictionLRU        EvictionPolicy = "LRU"        // 最近最少使用
-	EvictionLFU        EvictionPolicy = "LFU"        // 最不常用
-	EvictionTTL        EvictionPolicy = "TTL"        // 過期時間
+	EvictionLRU         EvictionPolicy = "LRU"         // 最近最少使用
+	EvictionLFU         EvictionPolicy = "LFU"         // 最不常用
+	EvictionTTL         EvictionPolicy = "TTL"         // 過期時間
 	EvictionIntelligent EvictionPolicy = "INTELLIGENT" // 智能淘汰
 )
 
@@ -84,16 +84,16 @@ func DefaultIntelligentCacheConfig() *IntelligentCacheConfig {
 
 // IntelligentCacheEntry 智能快取條目
 type IntelligentCacheEntry struct {
-	Key           string        `json:"key"`
-	Value         interface{}   `json:"value"`
-	CreatedAt     time.Time     `json:"created_at"`
-	LastAccessed  time.Time     `json:"last_accessed"`
-	AccessCount   int64         `json:"access_count"`
-	TTL           time.Duration `json:"ttl"`
-	Size          int64         `json:"size"`
-	Semantic      *SemanticData `json:"semantic,omitempty"`
-	Compressed    bool          `json:"compressed"`
-	Encrypted     bool          `json:"encrypted"`
+	Key          string        `json:"key"`
+	Value        interface{}   `json:"value"`
+	CreatedAt    time.Time     `json:"created_at"`
+	LastAccessed time.Time     `json:"last_accessed"`
+	AccessCount  int64         `json:"access_count"`
+	TTL          time.Duration `json:"ttl"`
+	Size         int64         `json:"size"`
+	Semantic     *SemanticData `json:"semantic,omitempty"`
+	Compressed   bool          `json:"compressed"`
+	Encrypted    bool          `json:"encrypted"`
 }
 
 // SemanticData 語義數據
@@ -108,39 +108,39 @@ func NewIntelligentCache(config *IntelligentCacheConfig) (*IntelligentCache, err
 	if config == nil {
 		config = DefaultIntelligentCacheConfig()
 	}
-	
+
 	// 創建基礎快取
 	cacheConfig := CacheConfig{
 		MaxEntries:      config.MaxSize,
 		DefaultTTL:      config.DefaultTTL,
 		CleanupInterval: config.CleanupInterval,
 	}
-	
-	primaryCache, err := NewCache(cacheConfig)
-	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrCacheError, "創建基礎快取失敗")
-	}
-	
+
+    primaryCache, err := NewCache(cacheConfig)
+    if err != nil {
+		return nil, aerrors.WrapError(err, aerrors.ErrCacheError, "創建基礎快取失敗")
+    }
+
 	ic := &IntelligentCache{
 		primaryCache: primaryCache,
 		config:       config,
 	}
-	
+
 	// 初始化語義索引
 	if config.EnableSemantic {
 		ic.semanticIndex = NewSemanticIndex(config.SimilarityThreshold)
 	}
-	
+
 	// 初始化預熱器
 	if config.EnablePrewarming {
 		ic.prewarmer = NewCachePrewarmer(ic, config)
 	}
-	
+
 	// 初始化分析器
 	if config.EnableAnalytics {
 		ic.analytics = NewCacheAnalytics(config.AnalyticsWindow)
 	}
-	
+
 	return ic, nil
 }
 
@@ -148,7 +148,7 @@ func NewIntelligentCache(config *IntelligentCacheConfig) (*IntelligentCache, err
 func (ic *IntelligentCache) Set(key string, value interface{}, ttl time.Duration) error {
 	ic.mu.Lock()
 	defer ic.mu.Unlock()
-	
+
 	entry := &IntelligentCacheEntry{
 		Key:          key,
 		Value:        value,
@@ -158,7 +158,7 @@ func (ic *IntelligentCache) Set(key string, value interface{}, ttl time.Duration
 		TTL:          ttl,
 		Size:         ic.calculateSize(value),
 	}
-	
+
 	// 處理語義數據
 	if ic.config.EnableSemantic && ic.semanticIndex != nil {
 		semantic, err := ic.extractSemanticData(key, value)
@@ -167,7 +167,7 @@ func (ic *IntelligentCache) Set(key string, value interface{}, ttl time.Duration
 			ic.semanticIndex.Index(key, semantic)
 		}
 	}
-	
+
 	// 處理壓縮
 	if ic.config.CompressionEnabled {
 		compressed, err := ic.compressValue(value)
@@ -176,23 +176,23 @@ func (ic *IntelligentCache) Set(key string, value interface{}, ttl time.Duration
 			entry.Compressed = true
 		}
 	}
-	
+
 	// 將條目序列化為字符串存儲到基礎快取
-	entryData, err := ic.serializeEntry(entry)
-	if err != nil {
-		return errors.WrapError(err, errors.ErrCacheWrite, "序列化快取條目失敗")
-	}
-	
-	err = ic.primaryCache.Set(key, entryData, ttl)
-	if err != nil {
-		return errors.WrapError(err, errors.ErrCacheWrite, "寫入快取失敗")
-	}
-	
+    entryData, err := ic.serializeEntry(entry)
+    if err != nil {
+		return aerrors.WrapError(err, aerrors.ErrCacheWrite, "序列化快取條目失敗")
+    }
+
+    err = ic.primaryCache.Set(key, entryData, ttl)
+    if err != nil {
+		return aerrors.WrapError(err, aerrors.ErrCacheWrite, "寫入快取失敗")
+    }
+
 	// 記錄分析數據
 	if ic.analytics != nil {
 		ic.analytics.RecordSet(key, entry.Size)
 	}
-	
+
 	return nil
 }
 
@@ -200,9 +200,9 @@ func (ic *IntelligentCache) Set(key string, value interface{}, ttl time.Duration
 func (ic *IntelligentCache) Get(key string) (interface{}, bool) {
 	ic.mu.Lock()
 	defer ic.mu.Unlock()
-	
+
 	// 從基礎快取獲取
-	rawEntry, exists := ic.primaryCache.Get(key)
+	entryData, exists := ic.primaryCache.Get(key)
 	if !exists {
 		// 記錄快取未命中
 		if ic.analytics != nil {
@@ -210,21 +210,16 @@ func (ic *IntelligentCache) Get(key string) (interface{}, bool) {
 		}
 		return nil, false
 	}
-	
-	entryData, ok := rawEntry.(string)
-	if !ok {
-		return nil, false
-	}
-	
+
 	entry, err := ic.deserializeEntry(entryData)
 	if err != nil {
 		return nil, false
 	}
-	
+
 	// 更新訪問統計
 	entry.LastAccessed = time.Now()
 	entry.AccessCount++
-	
+
 	// 解壓縮
 	value := entry.Value
 	if entry.Compressed {
@@ -233,86 +228,84 @@ func (ic *IntelligentCache) Get(key string) (interface{}, bool) {
 			value = decompressed
 		}
 	}
-	
+
 	// 記錄快取命中
 	if ic.analytics != nil {
 		ic.analytics.RecordHit(key)
 	}
-	
+
 	return value, true
 }
 
 // GetSimilar 根據語義相似性獲取類似的快取條目
 func (ic *IntelligentCache) GetSimilar(key string, query interface{}) ([]SimilarResult, error) {
-	if !ic.config.EnableSemantic || ic.semanticIndex == nil {
-		return nil, errors.NewError(errors.ErrCacheError, "語義搜索未啟用")
-	}
-	
+    if !ic.config.EnableSemantic || ic.semanticIndex == nil {
+		return nil, aerrors.NewError(aerrors.ErrCacheError, "語義搜索未啟用")
+    }
+
 	ic.mu.RLock()
 	defer ic.mu.RUnlock()
-	
+
 	// 提取查詢的語義數據
-	querySemantics, err := ic.extractSemanticData(key, query)
-	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrCacheError, "提取查詢語義數據失敗")
-	}
-	
+    querySemantics, err := ic.extractSemanticData(key, query)
+    if err != nil {
+		return nil, aerrors.WrapError(err, aerrors.ErrCacheError, "提取查詢語義數據失敗")
+    }
+
 	// 搜索相似條目
 	similarKeys := ic.semanticIndex.FindSimilar(querySemantics, ic.config.MaxSimilarResults)
-	
+
 	results := make([]SimilarResult, 0, len(similarKeys))
 	for _, result := range similarKeys {
-		if rawEntry, exists := ic.primaryCache.Get(result.Key); exists {
-			if entryData, ok := rawEntry.(string); ok {
-				if entry, err := ic.deserializeEntry(entryData); err == nil {
-					value := entry.Value
-					if entry.Compressed {
-						if decompressed, err := ic.decompressValue(entry.Value); err == nil {
-							value = decompressed
-						}
+		if entryData, exists := ic.primaryCache.Get(result.Key); exists {
+			if entry, err := ic.deserializeEntry(entryData); err == nil {
+				value := entry.Value
+				if entry.Compressed {
+					if decompressed, err := ic.decompressValue(entry.Value); err == nil {
+						value = decompressed
 					}
-					
-					results = append(results, SimilarResult{
-						Key:        result.Key,
-						Value:      value,
-						Similarity: result.Similarity,
-						Entry:      entry,
-					})
 				}
+
+				results = append(results, SimilarResult{
+					Key:        result.Key,
+					Value:      value,
+					Similarity: result.Similarity,
+					Entry:      entry,
+				})
 			}
 		}
 	}
-	
+
 	return results, nil
 }
 
 // SimilarResult 相似搜索結果
 type SimilarResult struct {
-	Key        string                  `json:"key"`
-	Value      interface{}             `json:"value"`
-	Similarity float64                 `json:"similarity"`
-	Entry      *IntelligentCacheEntry  `json:"entry"`
+	Key        string                 `json:"key"`
+	Value      interface{}            `json:"value"`
+	Similarity float64                `json:"similarity"`
+	Entry      *IntelligentCacheEntry `json:"entry"`
 }
 
 // Delete 刪除快取條目
 func (ic *IntelligentCache) Delete(key string) bool {
 	ic.mu.Lock()
 	defer ic.mu.Unlock()
-	
+
 	// 從語義索引中移除
 	if ic.semanticIndex != nil {
 		ic.semanticIndex.Remove(key)
 	}
-	
+
 	// 從基礎快取中刪除
 	ic.primaryCache.Delete(key)
 	deleted := true // 簡化實現
-	
+
 	// 記錄分析數據
 	if ic.analytics != nil && deleted {
 		ic.analytics.RecordDelete(key)
 	}
-	
+
 	return deleted
 }
 
@@ -320,19 +313,19 @@ func (ic *IntelligentCache) Delete(key string) bool {
 func (ic *IntelligentCache) GetStats() *IntelligentCacheStats {
 	ic.mu.RLock()
 	defer ic.mu.RUnlock()
-	
+
 	stats := &IntelligentCacheStats{
 		PrimaryCache: ic.primaryCache.GetStats(),
 	}
-	
+
 	if ic.semanticIndex != nil {
 		stats.SemanticIndex = ic.semanticIndex.GetStats()
 	}
-	
+
 	if ic.analytics != nil {
 		stats.Analytics = ic.analytics.GetStats()
 	}
-	
+
 	return stats
 }
 
@@ -345,10 +338,10 @@ type IntelligentCacheStats struct {
 
 // StartPrewarming 啟動快取預熱
 func (ic *IntelligentCache) StartPrewarming(ctx context.Context) error {
-	if !ic.config.EnablePrewarming || ic.prewarmer == nil {
-		return errors.NewError(errors.ErrCacheError, "快取預熱未啟用")
-	}
-	
+    if !ic.config.EnablePrewarming || ic.prewarmer == nil {
+		return aerrors.NewError(aerrors.ErrCacheError, "快取預熱未啟用")
+    }
+
 	return ic.prewarmer.Start(ctx)
 }
 
@@ -363,13 +356,13 @@ func (ic *IntelligentCache) StopPrewarming() {
 func (ic *IntelligentCache) Optimize() error {
 	ic.mu.Lock()
 	defer ic.mu.Unlock()
-	
-	if ic.analytics == nil {
-		return errors.NewError(errors.ErrCacheError, "快取分析未啟用")
-	}
-	
+
+    if ic.analytics == nil {
+		return aerrors.NewError(aerrors.ErrCacheError, "快取分析未啟用")
+    }
+
 	analytics := ic.analytics.GetStats()
-	
+
 	// 根據配置的淘汰策略進行優化
 	switch ic.config.EvictionPolicy {
 	case EvictionIntelligent:
@@ -380,8 +373,8 @@ func (ic *IntelligentCache) Optimize() error {
 		return ic.lfuEviction()
 	case EvictionTTL:
 		return ic.ttlEviction()
-	default:
-		return errors.NewError(errors.ErrCacheError, "未知的淘汰策略")
+    default:
+		return aerrors.NewError(aerrors.ErrCacheError, "未知的淘汰策略")
 	}
 }
 
@@ -392,7 +385,7 @@ func (ic *IntelligentCache) extractSemanticData(key string, value interface{}) (
 	keywords := ic.extractKeywords(text)
 	vector := ic.generateVector(text)
 	fingerprint := ic.generateFingerprint(text)
-	
+
 	return &SemanticData{
 		Keywords:    keywords,
 		Vector:      vector,
@@ -405,29 +398,29 @@ func (ic *IntelligentCache) extractKeywords(text string) []string {
 	// 簡化的關鍵詞提取
 	words := strings.Fields(strings.ToLower(text))
 	wordCount := make(map[string]int)
-	
+
 	for _, word := range words {
 		// 過濾短詞和常用詞
 		if len(word) > 2 && !ic.isStopWord(word) {
 			wordCount[word]++
 		}
 	}
-	
+
 	// 按頻率排序
 	type wordFreq struct {
 		word string
 		freq int
 	}
-	
+
 	var wordFreqs []wordFreq
 	for word, freq := range wordCount {
 		wordFreqs = append(wordFreqs, wordFreq{word, freq})
 	}
-	
+
 	sort.Slice(wordFreqs, func(i, j int) bool {
 		return wordFreqs[i].freq > wordFreqs[j].freq
 	})
-	
+
 	// 返回前10個關鍵詞
 	keywords := make([]string, 0, 10)
 	for i, wf := range wordFreqs {
@@ -436,7 +429,7 @@ func (ic *IntelligentCache) extractKeywords(text string) []string {
 		}
 		keywords = append(keywords, wf.word)
 	}
-	
+
 	return keywords
 }
 
@@ -446,26 +439,26 @@ func (ic *IntelligentCache) generateVector(text string) []float64 {
 	hasher := fnv.New64a()
 	hasher.Write([]byte(text))
 	hash := hasher.Sum64()
-	
+
 	// 生成固定長度的向量
 	vector := make([]float64, 128)
 	for i := range vector {
 		vector[i] = float64((hash >> uint(i%64)) & 1)
 	}
-	
+
 	// 標準化向量
 	norm := 0.0
 	for _, v := range vector {
 		norm += v * v
 	}
 	norm = math.Sqrt(norm)
-	
+
 	if norm > 0 {
 		for i := range vector {
 			vector[i] /= norm
 		}
 	}
-	
+
 	return vector
 }
 
@@ -535,7 +528,7 @@ func (ic *IntelligentCache) Close() error {
 	if ic.prewarmer != nil {
 		ic.prewarmer.Stop()
 	}
-	
+
 	// 基礎快取的關閉（如果支持的話）
 	return nil
 }

@@ -7,36 +7,24 @@ import (
 	"strings"
 
 	"atomicgo.dev/keyboard/keys"
-	"github.com/pterm/pterm"
-	"github.com/spf13/cobra"
 	"github.com/TonnyWong1052/aish/internal/classification"
 	"github.com/TonnyWong1052/aish/internal/config"
 	"github.com/TonnyWong1052/aish/internal/shell"
+	"github.com/pterm/pterm"
+	"github.com/spf13/cobra"
 )
 
 // hookCmd is the parent command for hook-related operations
 var hookCmd = &cobra.Command{
 	Use:   "hook",
 	Short: "Manage the aish shell hook",
-	Long:  `Install, enable, disable, or uninstall the shell hook that allows aish to capture errors.`,
+	Long:  `Enable or disable the shell hook that allows aish to capture errors.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
 }
 
 // hookInstallCmd contains the logic from the original setupCmd
-var hookInstallCmd = &cobra.Command{
-	Use:   "install",
-	Short: "Installs or updates the shell hook",
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := shell.InstallHook(); err != nil {
-			pterm.Error.Printfln("Failed to install hook: %v", err)
-			os.Exit(1)
-		} else {
-			pterm.Success.Println("Shell hook installed/updated successfully.")
-		}
-	},
-}
 
 // hookEnableCmd contains the logic from the original enableCmd
 var hookEnableCmd = &cobra.Command{
@@ -78,56 +66,6 @@ var hookDisableCmd = &cobra.Command{
 }
 
 // hookUninstallCmd contains the logic from the original uninstallCmd
-var hookUninstallCmd = &cobra.Command{
-	Use:   "uninstall",
-	Short: "Removes the shell hook and all related aish files",
-	Run: func(cmd *cobra.Command, args []string) {
-		pterm.Warning.Println("This will remove all aish related files, including the binary, configuration, and history.")
-		confirmed, _ := pterm.DefaultInteractiveConfirm.
-			WithDefaultValue(false).
-			Show("Are you sure you want to continue?")
-
-		if !confirmed {
-			pterm.Info.Println("Uninstallation cancelled.")
-			return
-		}
-
-		pterm.Info.Println("Uninstalling aish...")
-
-		if uninstalled, err := shell.UninstallHook(); err != nil {
-			pterm.Error.Printfln("Failed to uninstall shell hook: %v", err)
-		} else if uninstalled {
-			pterm.Success.Println("Shell hook uninstalled.")
-		}
-
-		home, err := os.UserHomeDir()
-		if err == nil {
-			binaryPath := home + "/bin/aish"
-			if _, err := os.Stat(binaryPath); err == nil {
-				if err := os.Remove(binaryPath); err == nil {
-					pterm.Success.Println("Binary removed from ~/bin/aish")
-				} else {
-					pterm.Error.Printfln("Failed to remove binary: %v", err)
-				}
-			}
-		}
-
-		configPath, err := config.GetConfigPath()
-		if err == nil {
-			configDir := strings.Replace(configPath, "/config.json", "", 1)
-			if _, err := os.Stat(configDir); !os.IsNotExist(err) {
-				if err := os.RemoveAll(configDir); err == nil {
-					pterm.Success.Println("Configuration directory removed.")
-				} else {
-					pterm.Error.Printfln("Failed to remove config directory: %v", err)
-				}
-			}
-		}
-
-		pterm.Success.Println("Uninstallation complete.")
-		pterm.Info.Println("Please restart your terminal for changes to take effect.")
-	},
-}
 
 var hookInitCmd = &cobra.Command{
 	Use:   "init",
@@ -218,10 +156,8 @@ var hookInitCmd = &cobra.Command{
 }
 
 func init() {
-	hookCmd.AddCommand(hookInstallCmd)
 	hookCmd.AddCommand(hookEnableCmd)
 	hookCmd.AddCommand(hookDisableCmd)
-	hookCmd.AddCommand(hookUninstallCmd)
 	hookCmd.AddCommand(hookInitCmd)
 }
 

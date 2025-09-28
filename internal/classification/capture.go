@@ -17,16 +17,16 @@ const (
 	TerminatedBySignal      ErrorType = "TerminatedBySignal"
 	GenericError            ErrorType = "GenericError"
 	// Extended error types for better classification
-	NetworkError            ErrorType = "NetworkError"
-	DatabaseError           ErrorType = "DatabaseError"
-	ConfigError             ErrorType = "ConfigError"
-	DependencyError        ErrorType = "DependencyError"
-	TimeoutError           ErrorType = "TimeoutError"
-	MemoryError            ErrorType = "MemoryError"
-	DiskSpaceError         ErrorType = "DiskSpaceError"
-	PermissionError         ErrorType = "PermissionError"
-	AuthenticationError    ErrorType = "AuthenticationError"
-	InteractiveToolUsage   ErrorType = "InteractiveToolUsage"
+	NetworkError         ErrorType = "NetworkError"
+	DatabaseError        ErrorType = "DatabaseError"
+	ConfigError          ErrorType = "ConfigError"
+	DependencyError      ErrorType = "DependencyError"
+	TimeoutError         ErrorType = "TimeoutError"
+	MemoryError          ErrorType = "MemoryError"
+	DiskSpaceError       ErrorType = "DiskSpaceError"
+	PermissionError      ErrorType = "PermissionError"
+	AuthenticationError  ErrorType = "AuthenticationError"
+	InteractiveToolUsage ErrorType = "InteractiveToolUsage"
 )
 
 var allErrorTypes = []ErrorType{
@@ -82,7 +82,7 @@ func isInteractiveToolUsageError(combined string) bool {
 	if strings.Contains(combined, "Input must be provided either through stdin or as a prompt argument when using --print") {
 		return true
 	}
-	
+
 	// Other interactive tools' common usage errors
 	usagePatterns := []string{
 		"Usage:",
@@ -92,13 +92,13 @@ func isInteractiveToolUsageError(combined string) bool {
 		"Run with --help for more information",
 		"For help, run:",
 	}
-	
+
 	for _, pattern := range usagePatterns {
 		if strings.Contains(combined, pattern) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -120,7 +120,7 @@ func isNetworkError(combined string) bool {
 		"timeout connecting",
 		"connection failed",
 	}
-	
+
 	combinedLower := strings.ToLower(combined)
 	for _, pattern := range networkPatterns {
 		if strings.Contains(combinedLower, pattern) {
@@ -146,7 +146,7 @@ func isDatabaseError(combined string) bool {
 		"database timeout",
 		"deadlock detected",
 	}
-	
+
 	combinedLower := strings.ToLower(combined)
 	for _, pattern := range dbPatterns {
 		if strings.Contains(combinedLower, pattern) {
@@ -170,7 +170,7 @@ func isConfigError(combined string) bool {
 		"bad configuration",
 		"config file corrupt",
 	}
-	
+
 	combinedLower := strings.ToLower(combined)
 	for _, pattern := range configPatterns {
 		if strings.Contains(combinedLower, pattern) {
@@ -196,7 +196,7 @@ func isDependencyError(combined string) bool {
 		"incompatible version",
 		"dependency resolution failed",
 	}
-	
+
 	combinedLower := strings.ToLower(combined)
 	for _, pattern := range depPatterns {
 		if strings.Contains(combinedLower, pattern) {
@@ -219,7 +219,7 @@ func isTimeoutError(combined string) bool {
 		"execution timeout",
 		"command timeout",
 	}
-	
+
 	combinedLower := strings.ToLower(combined)
 	for _, pattern := range timeoutPatterns {
 		if strings.Contains(combinedLower, pattern) {
@@ -243,7 +243,7 @@ func isMemoryError(combined string) bool {
 		"heap space",
 		"stack overflow",
 	}
-	
+
 	combinedLower := strings.ToLower(combined)
 	for _, pattern := range memoryPatterns {
 		if strings.Contains(combinedLower, pattern) {
@@ -267,7 +267,7 @@ func isDiskSpaceError(combined string) bool {
 		"not enough space",
 		"storage space",
 	}
-	
+
 	combinedLower := strings.ToLower(combined)
 	for _, pattern := range diskPatterns {
 		if strings.Contains(combinedLower, pattern) {
@@ -277,7 +277,7 @@ func isDiskSpaceError(combined string) bool {
 	return false
 }
 
-// isAuthenticationError checks if the error is authentication-related  
+// isAuthenticationError checks if the error is authentication-related
 func isAuthenticationError(combined string) bool {
 	authPatterns := []string{
 		"authentication failed",
@@ -296,7 +296,7 @@ func isAuthenticationError(combined string) bool {
 		"401 unauthorized",
 		"403 forbidden",
 	}
-	
+
 	combinedLower := strings.ToLower(combined)
 	for _, pattern := range authPatterns {
 		if strings.Contains(combinedLower, pattern) {

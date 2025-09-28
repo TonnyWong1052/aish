@@ -18,26 +18,26 @@ type EnhancedPresenter struct {
 
 // PresenterConfig 展示器配置
 type PresenterConfig struct {
-	EnableColors    bool          `json:"enable_colors"`
-	EnableEmojis    bool          `json:"enable_emojis"`
-	AnimationSpeed  time.Duration `json:"animation_speed"`
-	ProgressStyle   string        `json:"progress_style"`
-	ShowTimestamps  bool          `json:"show_timestamps"`
-	Locale          string        `json:"locale"`
-	MaxLineLength   int           `json:"max_line_length"`
-	AutoWrap        bool          `json:"auto_wrap"`
+	EnableColors   bool          `json:"enable_colors"`
+	EnableEmojis   bool          `json:"enable_emojis"`
+	AnimationSpeed time.Duration `json:"animation_speed"`
+	ProgressStyle  string        `json:"progress_style"`
+	ShowTimestamps bool          `json:"show_timestamps"`
+	Locale         string        `json:"locale"`
+	MaxLineLength  int           `json:"max_line_length"`
+	AutoWrap       bool          `json:"auto_wrap"`
 }
 
 // Theme 主題配置
 type Theme struct {
-	Primary     pterm.Color `json:"primary"`
-	Secondary   pterm.Color `json:"secondary"`
-	Success     pterm.Color `json:"success"`
-	Warning     pterm.Color `json:"warning"`
-	Error       pterm.Color `json:"error"`
-	Info        pterm.Color `json:"info"`
-	Background  pterm.Color `json:"background"`
-	Text        pterm.Color `json:"text"`
+	Primary    pterm.Color `json:"primary"`
+	Secondary  pterm.Color `json:"secondary"`
+	Success    pterm.Color `json:"success"`
+	Warning    pterm.Color `json:"warning"`
+	Error      pterm.Color `json:"error"`
+	Info       pterm.Color `json:"info"`
+	Background pterm.Color `json:"background"`
+	Text       pterm.Color `json:"text"`
 }
 
 // MessageType 消息類型
@@ -84,7 +84,7 @@ func NewEnhancedPresenter(config *PresenterConfig) *EnhancedPresenter {
 	if config == nil {
 		config = DefaultPresenterConfig()
 	}
-	
+
 	return &EnhancedPresenter{
 		config: config,
 		theme:  DefaultTheme(),
@@ -97,12 +97,12 @@ func (ep *EnhancedPresenter) ShowMessage(msgType MessageType, title, message str
 	if ep.config.ShowTimestamps {
 		timestamp = fmt.Sprintf("[%s] ", time.Now().Format("15:04:05"))
 	}
-	
+
 	// 自動換行處理
 	if ep.config.AutoWrap && len(message) > ep.config.MaxLineLength {
 		message = ep.wrapText(message, ep.config.MaxLineLength)
 	}
-	
+
 	switch msgType {
 	case MessageSuccess:
 		ep.showSuccess(timestamp, title, message)
@@ -125,7 +125,7 @@ func (ep *EnhancedPresenter) showSuccess(timestamp, title, message string) {
 	if ep.config.EnableEmojis {
 		emoji = "✅ "
 	}
-	
+
 	if ep.config.EnableColors {
 		pterm.NewStyle(ep.theme.Success).Printf("%s%s%s", timestamp, emoji, title)
 		if message != "" {
@@ -147,7 +147,7 @@ func (ep *EnhancedPresenter) showWarning(timestamp, title, message string) {
 	if ep.config.EnableEmojis {
 		emoji = "⚠️  "
 	}
-	
+
 	if ep.config.EnableColors {
 		pterm.NewStyle(ep.theme.Warning).Printf("%s%s%s", timestamp, emoji, title)
 		if message != "" {
@@ -169,7 +169,7 @@ func (ep *EnhancedPresenter) showError(timestamp, title, message string) {
 	if ep.config.EnableEmojis {
 		emoji = "❌ "
 	}
-	
+
 	if ep.config.EnableColors {
 		pterm.NewStyle(ep.theme.Error).Printf("%s%s%s", timestamp, emoji, title)
 		if message != "" {
@@ -191,7 +191,7 @@ func (ep *EnhancedPresenter) showInfo(timestamp, title, message string) {
 	if ep.config.EnableEmojis {
 		emoji = "ℹ️  "
 	}
-	
+
 	if ep.config.EnableColors {
 		pterm.NewStyle(ep.theme.Info).Printf("%s%s%s", timestamp, emoji, title)
 		if message != "" {
@@ -213,7 +213,7 @@ func (ep *EnhancedPresenter) showDebug(timestamp, title, message string) {
 	if ep.config.EnableEmojis {
 		emoji = "🐛 "
 	}
-	
+
 	if ep.config.EnableColors {
 		pterm.NewStyle(ep.theme.Secondary).Printf("%s%s%s", timestamp, emoji, title)
 		if message != "" {
@@ -234,7 +234,7 @@ func (ep *EnhancedPresenter) StartLoading(message string) {
 	if ep.spinner != nil {
 		ep.spinner.Stop()
 	}
-	
+
 	if ep.config.EnableColors {
 		ep.spinner, _ = pterm.DefaultSpinner.
 			WithText(message).
@@ -280,7 +280,7 @@ func (ep *EnhancedPresenter) ShowProgress(title string, current, total int) {
 				Start()
 		}
 	}
-	
+
 	if ep.progressBar != nil {
 		ep.progressBar.Current = current
 		if current >= total {
@@ -300,30 +300,30 @@ func (ep *EnhancedPresenter) ShowProgress(title string, current, total int) {
 func (ep *EnhancedPresenter) ShowTable(headers []string, rows [][]string, title string) {
 	if ep.config.EnableColors {
 		table := pterm.DefaultTable.WithHasHeader(len(headers) > 0)
-		
+
 		if title != "" {
 			pterm.DefaultHeader.Printf(title)
 			pterm.Println()
 		}
-		
+
 		data := make([][]string, 0, len(rows)+1)
 		if len(headers) > 0 {
 			data = append(data, headers)
 		}
 		data = append(data, rows...)
-		
+
 		table.WithData(data).Render()
 	} else {
 		if title != "" {
 			fmt.Printf("=== %s ===\n", title)
 		}
-		
+
 		// 簡單的文本表格
 		if len(headers) > 0 {
 			fmt.Println(strings.Join(headers, "\t"))
 			fmt.Println(strings.Repeat("-", len(strings.Join(headers, "\t"))))
 		}
-		
+
 		for _, row := range rows {
 			fmt.Println(strings.Join(row, "\t"))
 		}
@@ -335,7 +335,7 @@ func (ep *EnhancedPresenter) ShowTable(headers []string, rows [][]string, title 
 func (ep *EnhancedPresenter) ShowPanel(title, content string, panelType MessageType) {
 	if ep.config.EnableColors {
 		var style pterm.Style
-		
+
 		switch panelType {
 		case MessageSuccess:
 			style = *pterm.NewStyle(ep.theme.Success, pterm.BgDefault)
@@ -346,12 +346,12 @@ func (ep *EnhancedPresenter) ShowPanel(title, content string, panelType MessageT
 		default:
 			style = *pterm.NewStyle(ep.theme.Info, pterm.BgDefault)
 		}
-		
+
 		panel := pterm.DefaultBox.
 			WithTitle(title).
 			WithTitleTopCenter().
 			WithBoxStyle(&style)
-		
+
 		panel.Println(content)
 	} else {
 		fmt.Printf("┌─ %s ─┐\n", title)
@@ -367,7 +367,7 @@ func (ep *EnhancedPresenter) ShowList(items []string, title string, ordered bool
 	if title != "" {
 		ep.ShowMessage(MessageInfo, title, "")
 	}
-	
+
 	if ep.config.EnableColors {
 		if ordered {
 			for i, item := range items {
@@ -402,7 +402,7 @@ func (ep *EnhancedPresenter) ConfirmAction(message string, defaultYes bool) bool
 		} else {
 			prompt = " (y/N)"
 		}
-		
+
 		result, _ := pterm.DefaultInteractiveConfirm.
 			WithDefaultValue(defaultYes).
 			WithDefaultText(message + prompt).
@@ -416,7 +416,7 @@ func (ep *EnhancedPresenter) ConfirmAction(message string, defaultYes bool) bool
 		} else {
 			prompt = " (y/N): "
 		}
-		
+
 		fmt.Print(message + prompt)
 		// 這裡應該讀取用戶輸入，簡化實現返回默認值
 		return defaultYes
@@ -469,31 +469,31 @@ func (ep *EnhancedPresenter) wrapText(text string, width int) string {
 	if width <= 0 {
 		return text
 	}
-	
+
 	words := strings.Fields(text)
 	if len(words) == 0 {
 		return text
 	}
-	
+
 	var lines []string
 	var currentLine strings.Builder
-	
+
 	for _, word := range words {
 		if currentLine.Len() > 0 && currentLine.Len()+len(word)+1 > width {
 			lines = append(lines, currentLine.String())
 			currentLine.Reset()
 		}
-		
+
 		if currentLine.Len() > 0 {
 			currentLine.WriteString(" ")
 		}
 		currentLine.WriteString(word)
 	}
-	
+
 	if currentLine.Len() > 0 {
 		lines = append(lines, currentLine.String())
 	}
-	
+
 	return strings.Join(lines, "\n")
 }
 
@@ -531,11 +531,11 @@ func (ep *EnhancedPresenter) ShowStatusBar(items []StatusItem) {
 		fmt.Printf("[%s]\n", strings.Join(parts, " | "))
 		return
 	}
-	
+
 	// 彩色狀態欄
 	var panelRows [][]pterm.Panel
 	var currentRow []pterm.Panel
-	
+
 	for _, item := range items {
 		color := ep.theme.Info
 		switch item.Type {
@@ -546,26 +546,26 @@ func (ep *EnhancedPresenter) ShowStatusBar(items []StatusItem) {
 		case "error":
 			color = ep.theme.Error
 		}
-		
+
 		panel := pterm.Panel{
-			Data: fmt.Sprintf("%s\n%s", 
+			Data: fmt.Sprintf("%s\n%s",
 				pterm.NewStyle(color).Sprint(item.Label),
 				item.Value),
 		}
 		currentRow = append(currentRow, panel)
-		
+
 		// 每3個panel為一行，或者在最後一個item時添加到panelRows
 		if len(currentRow) == 3 {
 			panelRows = append(panelRows, currentRow)
 			currentRow = []pterm.Panel{}
 		}
 	}
-	
+
 	// 添加剩餘的panel
 	if len(currentRow) > 0 {
 		panelRows = append(panelRows, currentRow)
 	}
-	
+
 	pterm.DefaultPanel.WithPanels(panelRows).Render()
 }
 

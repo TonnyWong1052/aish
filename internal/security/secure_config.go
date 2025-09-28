@@ -37,10 +37,10 @@ type SecureConfig struct {
 
 // ConfigSecurity 配置安全選項
 type ConfigSecurity struct {
-	EncryptSensitive bool `json:"encrypt_sensitive"`
-	RequireAuth      bool `json:"require_auth"`
-	AutoSanitize     bool `json:"auto_sanitize"`
-	BackupOnChange   bool `json:"backup_on_change"`
+	EncryptSensitive bool        `json:"encrypt_sensitive"`
+	RequireAuth      bool        `json:"require_auth"`
+	AutoSanitize     bool        `json:"auto_sanitize"`
+	BackupOnChange   bool        `json:"backup_on_change"`
 	FilePermissions  os.FileMode `json:"file_permissions"`
 }
 
@@ -61,19 +61,19 @@ func NewSecureConfigManager(password string) (*SecureConfigManager, error) {
 	if _, err := io.ReadFull(rand.Reader, salt); err != nil {
 		return nil, fmt.Errorf("failed to generate salt: %w", err)
 	}
-	
+
 	key := pbkdf2.Key([]byte(password), salt, 100000, 32, sha256.New)
-	
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create cipher: %w", err)
 	}
-	
+
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create GCM: %w", err)
 	}
-	
+
 	return &SecureConfigManager{
 		keyDerivationSalt: salt,
 		iterations:        100000,
@@ -83,65 +83,65 @@ func NewSecureConfigManager(password string) (*SecureConfigManager, error) {
 }
 
 // LoadSecureConfig 加載安全配置
-func (scm *SecureConfigManager) LoadSecureConfig(filepath string) (*SecureConfig, error) {
-	data, err := os.ReadFile(filepath)
+func (scm *SecureConfigManager) LoadSecureConfig(filePath string) (*SecureConfig, error) {
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
-	
+
 	var config SecureConfig
 	if err := json.Unmarshal(data, &config); err != nil {
 		return nil, fmt.Errorf("failed to parse config: %w", err)
 	}
-	
+
 	// 驗證文件權限
-	if err := scm.verifyFilePermissions(filepath); err != nil {
+	if err := scm.verifyFilePermissions(filePath); err != nil {
 		return nil, fmt.Errorf("insecure file permissions: %w", err)
 	}
-	
+
 	// 解密敏感數據
 	if config.Encrypted {
 		if err := scm.decryptSensitiveData(&config); err != nil {
 			return nil, fmt.Errorf("failed to decrypt sensitive data: %w", err)
 		}
 	}
-	
+
 	// 驗證校驗和
 	if config.Checksum != "" {
 		if !scm.verifyChecksum(&config) {
 			return nil, errors.New("config checksum verification failed")
 		}
 	}
-	
+
 	return &config, nil
 }
 
 // SaveSecureConfig 保存安全配置
-func (scm *SecureConfigManager) SaveSecureConfig(config *SecureConfig, filepath string, security *ConfigSecurity) error {
+func (scm *SecureConfigManager) SaveSecureConfig(config *SecureConfig, filePath string, security *ConfigSecurity) error {
 	if security == nil {
 		security = DefaultConfigSecurity()
 	}
-	
+
 	// 創建備份
 	if security.BackupOnChange {
-		if err := scm.createBackup(filepath); err != nil {
+		if err := scm.createBackup(filePath); err != nil {
 			// 不阻止保存，只記錄錯誤
 			fmt.Fprintf(os.Stderr, "Warning: failed to create backup: %v\n", err)
 		}
 	}
-	
+
 	// 複製配置以避免修改原始數據
 	configCopy := *config
 	configCopy.Data = make(map[string]interface{})
 	for k, v := range config.Data {
 		configCopy.Data[k] = v
 	}
-	
+
 	// 自動清理敏感數據
 	if security.AutoSanitize {
 		configCopy.Data = scm.sanitizer.SanitizeMap(configCopy.Data)
 	}
-	
+
 	// 加密敏感數據
 	if security.EncryptSensitive {
 		if err := scm.encryptSensitiveData(&configCopy); err != nil {
@@ -149,31 +149,31 @@ func (scm *SecureConfigManager) SaveSecureConfig(config *SecureConfig, filepath 
 		}
 		configCopy.Encrypted = true
 	}
-	
+
 	// 計算校驗和
 	configCopy.Checksum = scm.calculateChecksum(&configCopy)
-	
+
 	// 序列化配置
 	data, err := json.MarshalIndent(&configCopy, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
-	
+
 	// 創建目錄
-	if err := os.MkdirAll(filepath.Dir(filepath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
-	
+
 	// 寫入文件
-	if err := os.WriteFile(filepath, data, security.FilePermissions); err != nil {
+	if err := os.WriteFile(filePath, data, security.FilePermissions); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
-	
+
 	// 設置文件權限（雙重確保）
-	if err := os.Chmod(filepath, security.FilePermissions); err != nil {
+	if err := os.Chmod(filePath, security.FilePermissions); err != nil {
 		return fmt.Errorf("failed to set file permissions: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -219,14 +219,14 @@ func (scm *SecureConfigManager) isSensitiveKey(key string) bool {
 		"private_key", "privatekey",
 		"oauth_secret", "client_secret",
 	}
-	
+
 	keyLower := strings.ToLower(key)
 	for _, sensitive := range sensitiveKeys {
 		if strings.Contains(keyLower, sensitive) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -236,7 +236,7 @@ func (scm *SecureConfigManager) encrypt(plaintext string) (string, error) {
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return "", err
 	}
-	
+
 	ciphertext := scm.gcm.Seal(nonce, nonce, []byte(plaintext), nil)
 	return base64.StdEncoding.EncodeToString(ciphertext), nil
 }
@@ -247,18 +247,18 @@ func (scm *SecureConfigManager) decrypt(ciphertext string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	nonceSize := scm.gcm.NonceSize()
 	if len(data) < nonceSize {
 		return "", errors.New("ciphertext too short")
 	}
-	
+
 	nonce, ciphertextBytes := data[:nonceSize], data[nonceSize:]
 	plaintext, err := scm.gcm.Open(nil, nonce, ciphertextBytes, nil)
 	if err != nil {
 		return "", err
 	}
-	
+
 	return string(plaintext), nil
 }
 
@@ -267,7 +267,7 @@ func (scm *SecureConfigManager) calculateChecksum(config *SecureConfig) string {
 	// 複製配置並移除校驗和字段
 	configForHash := *config
 	configForHash.Checksum = ""
-	
+
 	data, _ := json.Marshal(configForHash)
 	hash := sha256.Sum256(data)
 	return base64.StdEncoding.EncodeToString(hash[:])
@@ -279,41 +279,41 @@ func (scm *SecureConfigManager) verifyChecksum(config *SecureConfig) bool {
 	config.Checksum = ""
 	calculatedChecksum := scm.calculateChecksum(config)
 	config.Checksum = expectedChecksum
-	
+
 	return expectedChecksum == calculatedChecksum
 }
 
 // verifyFilePermissions 驗證文件權限
-func (scm *SecureConfigManager) verifyFilePermissions(filepath string) error {
-	stat, err := os.Stat(filepath)
+func (scm *SecureConfigManager) verifyFilePermissions(filePath string) error {
+	stat, err := os.Stat(filePath)
 	if err != nil {
 		return err
 	}
-	
+
 	perm := stat.Mode().Perm()
-	
+
 	// 檢查是否對組和其他用戶可讀
 	if runtime.GOOS != "windows" {
 		if perm&0044 != 0 {
 			return fmt.Errorf("config file is readable by group or others (permissions: %o)", perm)
 		}
 	}
-	
+
 	return nil
 }
 
 // createBackup 創建配置備份
-func (scm *SecureConfigManager) createBackup(filepath string) error {
-	if _, err := os.Stat(filepath); os.IsNotExist(err) {
+func (scm *SecureConfigManager) createBackup(filePath string) error {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil // 文件不存在，無需備份
 	}
-	
-	data, err := os.ReadFile(filepath)
+
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
-	
-	backupPath := filepath + ".backup"
+
+	backupPath := filePath + ".backup"
 	return os.WriteFile(backupPath, data, 0600)
 }
 
@@ -323,13 +323,13 @@ func (scm *SecureConfigManager) SecureGet(config *SecureConfig, key string, sani
 	if !exists {
 		return nil, false
 	}
-	
+
 	if sanitize {
 		if strValue, ok := value.(string); ok {
 			return scm.sanitizer.Sanitize(strValue), true
 		}
 	}
-	
+
 	return value, true
 }
 
@@ -338,7 +338,7 @@ func (scm *SecureConfigManager) SecureSet(config *SecureConfig, key string, valu
 	if config.Data == nil {
 		config.Data = make(map[string]interface{})
 	}
-	
+
 	// 如果���敏感數據，自動清理
 	if strValue, ok := value.(string); ok && scm.isSensitiveKey(key) {
 		if scm.sanitizer.ContainsSensitiveData(strValue) {
@@ -346,14 +346,14 @@ func (scm *SecureConfigManager) SecureSet(config *SecureConfig, key string, valu
 			fmt.Fprintf(os.Stderr, "Warning: setting potentially sensitive data for key %s\n", key)
 		}
 	}
-	
+
 	config.Data[key] = value
 }
 
 // ValidateConfig 驗證配置安全性
 func (scm *SecureConfigManager) ValidateConfig(config *SecureConfig) []SecurityIssue {
 	var issues []SecurityIssue
-	
+
 	for key, value := range config.Data {
 		if strValue, ok := value.(string); ok {
 			// 檢查是否包含敏感數據
@@ -365,7 +365,7 @@ func (scm *SecureConfigManager) ValidateConfig(config *SecureConfig) []SecurityI
 					Severity:    "high",
 				})
 			}
-			
+
 			// 檢查是否為弱密碼
 			if scm.isSensitiveKey(key) && len(strValue) < 8 {
 				issues = append(issues, SecurityIssue{
@@ -377,7 +377,7 @@ func (scm *SecureConfigManager) ValidateConfig(config *SecureConfig) []SecurityI
 			}
 		}
 	}
-	
+
 	return issues
 }
 
@@ -396,19 +396,19 @@ func (scm *SecureConfigManager) GetConfigStats(config *SecureConfig) ConfigStats
 		EncryptedKeys: 0,
 		SensitiveKeys: 0,
 	}
-	
+
 	for key, value := range config.Data {
 		if scm.isSensitiveKey(key) {
 			stats.SensitiveKeys++
 		}
-		
+
 		if strValue, ok := value.(string); ok {
 			if scm.sanitizer.ContainsSensitiveData(strValue) {
 				stats.EncryptedKeys++
 			}
 		}
 	}
-	
+
 	return stats
 }
 
@@ -425,10 +425,10 @@ func (scm *SecureConfigManager) WipeMemory() {
 	for i := range scm.keyDerivationSalt {
 		scm.keyDerivationSalt[i] = 0
 	}
-	
+
 	// 強制垃圾回收
 	runtime.GC()
-	
+
 	// 在支持的系統上調用 mlock 防止內存交換
 	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
 		// 這需要適當的權限

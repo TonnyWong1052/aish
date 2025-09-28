@@ -31,4 +31,4 @@ formatters:
       sections:
         - standard
         - default
-        - prefix(powerful-cli)
+        - prefix(github.com/TonnyWong1052/aish)

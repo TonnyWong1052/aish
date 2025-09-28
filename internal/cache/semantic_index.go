@@ -22,9 +22,9 @@ type IndexEntry struct {
 
 // SemanticIndexStats 語義索引統計
 type SemanticIndexStats struct {
-	TotalEntries    int     `json:"total_entries"`
-	AverageVectorLength int `json:"average_vector_length"`
-	IndexSize       int64   `json:"index_size"`
+	TotalEntries        int   `json:"total_entries"`
+	AverageVectorLength int   `json:"average_vector_length"`
+	IndexSize           int64 `json:"index_size"`
 }
 
 // SimilarityResult 相似性搜索結果
@@ -45,10 +45,10 @@ func NewSemanticIndex(threshold float64) *SemanticIndex {
 func (si *SemanticIndex) Index(key string, semantic *SemanticData) {
 	si.mu.Lock()
 	defer si.mu.Unlock()
-	
+
 	si.entries[key] = &IndexEntry{
-		Key:      key,
-		Semantic: semantic,
+		Key:       key,
+		Semantic:  semantic,
 		CreatedAt: getCurrentTimestamp(),
 	}
 }
@@ -57,7 +57,7 @@ func (si *SemanticIndex) Index(key string, semantic *SemanticData) {
 func (si *SemanticIndex) Remove(key string) {
 	si.mu.Lock()
 	defer si.mu.Unlock()
-	
+
 	delete(si.entries, key)
 }
 
@@ -65,9 +65,9 @@ func (si *SemanticIndex) Remove(key string) {
 func (si *SemanticIndex) FindSimilar(query *SemanticData, maxResults int) []SimilarityResult {
 	si.mu.RLock()
 	defer si.mu.RUnlock()
-	
+
 	var results []SimilarityResult
-	
+
 	for key, entry := range si.entries {
 		similarity := si.calculateSimilarity(query, entry.Semantic)
 		if similarity >= si.threshold {
@@ -77,17 +77,17 @@ func (si *SemanticIndex) FindSimilar(query *SemanticData, maxResults int) []Simi
 			})
 		}
 	}
-	
+
 	// 按相似度排序
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].Similarity > results[j].Similarity
 	})
-	
+
 	// 限制結果數量
 	if len(results) > maxResults {
 		results = results[:maxResults]
 	}
-	
+
 	return results
 }
 
@@ -99,21 +99,21 @@ func (si *SemanticIndex) calculateSimilarity(a, b *SemanticData) float64 {
 		"vector":      0.5,
 		"fingerprint": 0.2,
 	}
-	
+
 	var totalSimilarity float64
-	
+
 	// 關鍵詞相似度
 	keywordSim := si.calculateKeywordSimilarity(a.Keywords, b.Keywords)
 	totalSimilarity += weights["keywords"] * keywordSim
-	
+
 	// 向量相似度
 	vectorSim := si.calculateVectorSimilarity(a.Vector, b.Vector)
 	totalSimilarity += weights["vector"] * vectorSim
-	
+
 	// 指紋相似度
 	fingerprintSim := si.calculateFingerprintSimilarity(a.Fingerprint, b.Fingerprint)
 	totalSimilarity += weights["fingerprint"] * fingerprintSim
-	
+
 	return totalSimilarity
 }
 
@@ -125,17 +125,17 @@ func (si *SemanticIndex) calculateKeywordSimilarity(a, b []string) float64 {
 	if len(a) == 0 || len(b) == 0 {
 		return 0.0
 	}
-	
+
 	setA := make(map[string]bool)
 	for _, keyword := range a {
 		setA[keyword] = true
 	}
-	
+
 	setB := make(map[string]bool)
 	for _, keyword := range b {
 		setB[keyword] = true
 	}
-	
+
 	// 計算交集
 	intersection := 0
 	for keyword := range setA {
@@ -143,14 +143,14 @@ func (si *SemanticIndex) calculateKeywordSimilarity(a, b []string) float64 {
 			intersection++
 		}
 	}
-	
+
 	// 計算並集
 	union := len(setA) + len(setB) - intersection
-	
+
 	if union == 0 {
 		return 0.0
 	}
-	
+
 	return float64(intersection) / float64(union)
 }
 
@@ -159,26 +159,26 @@ func (si *SemanticIndex) calculateVectorSimilarity(a, b []float64) float64 {
 	if len(a) != len(b) {
 		return 0.0
 	}
-	
+
 	if len(a) == 0 {
 		return 1.0
 	}
-	
+
 	var dotProduct, normA, normB float64
-	
+
 	for i := range a {
 		dotProduct += a[i] * b[i]
 		normA += a[i] * a[i]
 		normB += b[i] * b[i]
 	}
-	
+
 	normA = math.Sqrt(normA)
 	normB = math.Sqrt(normB)
-	
+
 	if normA == 0.0 || normB == 0.0 {
 		return 0.0
 	}
-	
+
 	return dotProduct / (normA * normB)
 }
 
@@ -187,18 +187,18 @@ func (si *SemanticIndex) calculateFingerprintSimilarity(a, b string) float64 {
 	if len(a) != len(b) {
 		return 0.0
 	}
-	
+
 	if len(a) == 0 {
 		return 1.0
 	}
-	
+
 	matches := 0
 	for i := range a {
 		if a[i] == b[i] {
 			matches++
 		}
 	}
-	
+
 	return float64(matches) / float64(len(a))
 }
 
@@ -206,19 +206,19 @@ func (si *SemanticIndex) calculateFingerprintSimilarity(a, b string) float64 {
 func (si *SemanticIndex) GetStats() *SemanticIndexStats {
 	si.mu.RLock()
 	defer si.mu.RUnlock()
-	
+
 	totalVectorLength := 0
 	for _, entry := range si.entries {
 		if entry.Semantic != nil {
 			totalVectorLength += len(entry.Semantic.Vector)
 		}
 	}
-	
+
 	avgVectorLength := 0
 	if len(si.entries) > 0 {
 		avgVectorLength = totalVectorLength / len(si.entries)
 	}
-	
+
 	return &SemanticIndexStats{
 		TotalEntries:        len(si.entries),
 		AverageVectorLength: avgVectorLength,
@@ -230,7 +230,7 @@ func (si *SemanticIndex) GetStats() *SemanticIndexStats {
 func (si *SemanticIndex) Clear() {
 	si.mu.Lock()
 	defer si.mu.Unlock()
-	
+
 	si.entries = make(map[string]*IndexEntry)
 }
 
@@ -238,7 +238,7 @@ func (si *SemanticIndex) Clear() {
 func (si *SemanticIndex) UpdateThreshold(threshold float64) {
 	si.mu.Lock()
 	defer si.mu.Unlock()
-	
+
 	si.threshold = threshold
 }
 
@@ -246,7 +246,7 @@ func (si *SemanticIndex) UpdateThreshold(threshold float64) {
 func (si *SemanticIndex) GetThreshold() float64 {
 	si.mu.RLock()
 	defer si.mu.RUnlock()
-	
+
 	return si.threshold
 }
 

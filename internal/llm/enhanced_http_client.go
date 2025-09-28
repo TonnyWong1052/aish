@@ -9,40 +9,40 @@ import (
 	"sync"
 	"time"
 
-	"github.com/TonnyWong1052/aish/internal/errors"
+	aerrors "github.com/TonnyWong1052/aish/internal/errors"
 )
 
 // EnhancedHTTPClient 增強版 HTTP 客戶端，整合了重試機制和斷路器
 type EnhancedHTTPClient struct {
-	client          *http.Client
-	retryManager    *errors.RetryManager
-	circuitBreaker  *errors.CircuitBreaker
+	client           *http.Client
+	retryManager     *aerrors.RetryManager
+	circuitBreaker   *aerrors.CircuitBreaker
 	metricsCollector *HTTPMetricsCollector
-	config          *EnhancedHTTPConfig
+	config           *EnhancedHTTPConfig
 }
 
 // EnhancedHTTPConfig 增強版 HTTP 客戶端配置
 type EnhancedHTTPConfig struct {
 	// HTTP 設置
-	Timeout                time.Duration `json:"timeout"`
-	MaxIdleConns           int           `json:"max_idle_conns"`
-	MaxIdleConnsPerHost    int           `json:"max_idle_conns_per_host"`
-	IdleConnTimeout        time.Duration `json:"idle_conn_timeout"`
-	TLSHandshakeTimeout    time.Duration `json:"tls_handshake_timeout"`
-	ResponseHeaderTimeout  time.Duration `json:"response_header_timeout"`
-	
+	Timeout               time.Duration `json:"timeout"`
+	MaxIdleConns          int           `json:"max_idle_conns"`
+	MaxIdleConnsPerHost   int           `json:"max_idle_conns_per_host"`
+	IdleConnTimeout       time.Duration `json:"idle_conn_timeout"`
+	TLSHandshakeTimeout   time.Duration `json:"tls_handshake_timeout"`
+	ResponseHeaderTimeout time.Duration `json:"response_header_timeout"`
+
 	// 重試設置
-	RetryConfig *errors.RetryConfig `json:"retry_config"`
-	
+	RetryConfig *aerrors.RetryConfig `json:"retry_config"`
+
 	// 斷路器設置
-	CircuitBreakerConfig *errors.CircuitBreakerConfig `json:"circuit_breaker_config"`
-	
+	CircuitBreakerConfig *aerrors.CircuitBreakerConfig `json:"circuit_breaker_config"`
+
 	// 指標收集
 	EnableMetrics bool `json:"enable_metrics"`
-	
+
 	// TLS 設置
 	TLSConfig *tls.Config `json:"-"`
-	
+
 	// 自定義請求檢查函數
 	IsRetryableStatusCode func(statusCode int) bool `json:"-"`
 }
@@ -56,8 +56,8 @@ func DefaultEnhancedHTTPConfig() *EnhancedHTTPConfig {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: 10 * time.Second,
-		RetryConfig:           errors.DefaultRetryConfig(),
-		CircuitBreakerConfig:  errors.DefaultCircuitBreakerConfig(),
+    	RetryConfig:           aerrors.DefaultRetryConfig(),
+		CircuitBreakerConfig:  aerrors.DefaultCircuitBreakerConfig(),
 		EnableMetrics:         true,
 		IsRetryableStatusCode: DefaultRetryableStatusCheck,
 	}
@@ -71,15 +71,20 @@ func DefaultRetryableStatusCheck(statusCode int) bool {
 
 // NewEnhancedHTTPClient 創建新的增強版 HTTP 客戶端
 func NewEnhancedHTTPClient(config *EnhancedHTTPConfig) *EnhancedHTTPClient {
-	if config == nil {
-		config = DefaultEnhancedHTTPConfig()
-	}
-	
-	// 創建 HTTP 傳輸層
-	transport := &http.Transport{
-		MaxIdleConns:          config.MaxIdleConns,
-		MaxIdleConnsPerHost:   config.MaxIdleConnsPerHost,
-		IdleConnTimeout:       config.IdleConnTimeout,
+    if config == nil {
+        config = DefaultEnhancedHTTPConfig()
+    }
+
+    // 若未提供 TLS 設定，預設要求 TLS 1.2 以上
+    if config.TLSConfig == nil {
+        config.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+    }
+
+    // 創建 HTTP 傳輸層
+    transport := &http.Transport{
+        MaxIdleConns:          config.MaxIdleConns,
+        MaxIdleConnsPerHost:   config.MaxIdleConnsPerHost,
+        IdleConnTimeout:       config.IdleConnTimeout,
 		TLSHandshakeTimeout:   config.TLSHandshakeTimeout,
 		ResponseHeaderTimeout: config.ResponseHeaderTimeout,
 		ForceAttemptHTTP2:     true,
@@ -91,52 +96,52 @@ func NewEnhancedHTTPClient(config *EnhancedHTTPConfig) *EnhancedHTTPClient {
 		}).DialContext,
 		ExpectContinueTimeout: 1 * time.Second,
 	}
-	
+
 	client := &http.Client{
 		Transport: transport,
 		Timeout:   config.Timeout,
 	}
-	
+
 	enhancedClient := &EnhancedHTTPClient{
 		client:         client,
-		retryManager:   errors.NewRetryManager(config.RetryConfig),
-		circuitBreaker: errors.NewCircuitBreaker(config.CircuitBreakerConfig),
+		retryManager:   aerrors.NewRetryManager(config.RetryConfig),
+		circuitBreaker: aerrors.NewCircuitBreaker(config.CircuitBreakerConfig),
 		config:         config,
 	}
-	
+
 	// 啟用指標收集
 	if config.EnableMetrics {
 		enhancedClient.metricsCollector = NewHTTPMetricsCollector()
 	}
-	
+
 	return enhancedClient
 }
 
 // Do 執行 HTTP 請求（包含重試和斷路器保護）
 func (c *EnhancedHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	startTime := time.Now()
-	
+
 	// 使用斷路器保護的可重試函數
 	var result *http.Response
 	var httpErr error
-	
+
 	retryResult := c.retryManager.ExecuteWithCallback(req.Context(), func(ctx context.Context) error {
 		return c.circuitBreaker.Execute(ctx, func(ctx context.Context) error {
 			// 複製請求以避免重試時的問題
 			reqClone := req.Clone(ctx)
-			
+
 			resp, err := c.client.Do(reqClone)
 			if err != nil {
-				return errors.WrapRetryableError(err, errors.ErrNetwork, "HTTP 請求失敗")
+				return aerrors.WrapRetryableError(err, aerrors.ErrNetwork, "HTTP 請求失敗")
 			}
-			
+
 			// 檢查狀態碼是否可重試
 			if c.config.IsRetryableStatusCode != nil && c.config.IsRetryableStatusCode(resp.StatusCode) {
 				resp.Body.Close()
-				return errors.NewRetryableError(errors.ErrProviderRequest, 
+				return aerrors.NewRetryableError(aerrors.ErrProviderRequest,
 					fmt.Sprintf("HTTP 狀態碼 %d 表示暫時性錯誤", resp.StatusCode))
 			}
-			
+
 			result = resp
 			return nil
 		})
@@ -145,7 +150,7 @@ func (c *EnhancedHTTPClient) Do(req *http.Request) (*http.Response, error) {
 			c.metricsCollector.RecordRetry(req.Method, req.URL.Host, attempt)
 		}
 	})
-	
+
 	// 記錄指標
 	if c.metricsCollector != nil {
 		duration := time.Since(startTime)
@@ -153,7 +158,7 @@ func (c *EnhancedHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		if result != nil {
 			statusCode = result.StatusCode
 		}
-		
+
 		c.metricsCollector.RecordRequest(
 			req.Method,
 			req.URL.Host,
@@ -163,11 +168,11 @@ func (c *EnhancedHTTPClient) Do(req *http.Request) (*http.Response, error) {
 			retryResult.Attempts,
 		)
 	}
-	
+
 	if !retryResult.Success {
 		return nil, retryResult.LastError
 	}
-	
+
 	return result, httpErr
 }
 
@@ -175,7 +180,7 @@ func (c *EnhancedHTTPClient) Do(req *http.Request) (*http.Response, error) {
 func (c *EnhancedHTTPClient) DoWithTimeout(req *http.Request, timeout time.Duration) (*http.Response, error) {
 	ctx, cancel := context.WithTimeout(req.Context(), timeout)
 	defer cancel()
-	
+
 	return c.Do(req.WithContext(ctx))
 }
 
@@ -183,25 +188,25 @@ func (c *EnhancedHTTPClient) DoWithTimeout(req *http.Request, timeout time.Durat
 func (c *EnhancedHTTPClient) HealthCheck(ctx context.Context, url string, headers map[string]string) error {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrNetwork, "創建健康檢查請求失敗")
+		return aerrors.WrapError(err, aerrors.ErrNetwork, "創建健康檢查請求失敗")
 	}
-	
+
 	// 添加標頭
 	for key, value := range headers {
 		req.Header.Set(key, value)
 	}
-	
+
 	resp, err := c.Do(req)
 	if err != nil {
-		return errors.WrapError(err, errors.ErrNetwork, "健康檢查請求失敗")
+		return aerrors.WrapError(err, aerrors.ErrNetwork, "健康檢查請求失敗")
 	}
 	defer resp.Body.Close()
-	
+
 	if resp.StatusCode >= 400 {
-		return errors.NewError(errors.ErrProviderResponse, 
+		return aerrors.NewError(aerrors.ErrProviderResponse,
 			fmt.Sprintf("健康檢查失敗，狀態碼: %d", resp.StatusCode))
 	}
-	
+
 	return nil
 }
 
@@ -214,7 +219,7 @@ func (c *EnhancedHTTPClient) GetMetrics() *HTTPMetrics {
 }
 
 // GetCircuitBreakerStats 獲取斷路器統計信息
-func (c *EnhancedHTTPClient) GetCircuitBreakerStats() errors.CircuitBreakerStats {
+func (c *EnhancedHTTPClient) GetCircuitBreakerStats() aerrors.CircuitBreakerStats {
 	return c.circuitBreaker.GetStats()
 }
 
@@ -233,14 +238,14 @@ type HTTPMetricsCollector struct {
 
 // HTTPMetrics HTTP 指標數據
 type HTTPMetrics struct {
-	TotalRequests    int64                    `json:"total_requests"`
-	SuccessfulRequests int64                  `json:"successful_requests"`
-	FailedRequests   int64                    `json:"failed_requests"`
-	TotalRetries     int64                    `json:"total_retries"`
-	AverageLatency   time.Duration            `json:"average_latency"`
-	StatusCodeCounts map[int]int64            `json:"status_code_counts"`
-	HostMetrics      map[string]*HostMetrics  `json:"host_metrics"`
-	LastUpdated      time.Time                `json:"last_updated"`
+	TotalRequests      int64                   `json:"total_requests"`
+	SuccessfulRequests int64                   `json:"successful_requests"`
+	FailedRequests     int64                   `json:"failed_requests"`
+	TotalRetries       int64                   `json:"total_retries"`
+	AverageLatency     time.Duration           `json:"average_latency"`
+	StatusCodeCounts   map[int]int64           `json:"status_code_counts"`
+	HostMetrics        map[string]*HostMetrics `json:"host_metrics"`
+	LastUpdated        time.Time               `json:"last_updated"`
 }
 
 // HostMetrics 主機級別的指標
@@ -272,16 +277,16 @@ func (c *HTTPMetricsCollector) RecordRequest(
 ) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.metrics.TotalRequests++
 	c.metrics.LastUpdated = time.Now()
-	
+
 	if success {
 		c.metrics.SuccessfulRequests++
 	} else {
 		c.metrics.FailedRequests++
 	}
-	
+
 	// 更新平均延遲（使用簡單移動平均）
 	if c.metrics.TotalRequests == 1 {
 		c.metrics.AverageLatency = duration
@@ -292,17 +297,17 @@ func (c *HTTPMetricsCollector) RecordRequest(
 			alpha*float64(duration) + (1-alpha)*float64(c.metrics.AverageLatency),
 		)
 	}
-	
+
 	// 記錄狀態碼
 	if statusCode > 0 {
 		c.metrics.StatusCodeCounts[statusCode]++
 	}
-	
+
 	// 記錄重試次數
 	if attempts > 1 {
 		c.metrics.TotalRetries += int64(attempts - 1)
 	}
-	
+
 	// 更新主機指標
 	if host != "" {
 		hostMetric, exists := c.metrics.HostMetrics[host]
@@ -310,14 +315,14 @@ func (c *HTTPMetricsCollector) RecordRequest(
 			hostMetric = &HostMetrics{}
 			c.metrics.HostMetrics[host] = hostMetric
 		}
-		
+
 		hostMetric.Requests++
 		hostMetric.LastRequest = time.Now()
-		
+
 		if !success {
 			hostMetric.Failures++
 		}
-		
+
 		// 更新主機平均延遲
 		if hostMetric.Requests == 1 {
 			hostMetric.AverageLatency = duration
@@ -334,7 +339,7 @@ func (c *HTTPMetricsCollector) RecordRequest(
 func (c *HTTPMetricsCollector) RecordRetry(method, host string, attempt int) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.metrics.TotalRetries++
 }
 
@@ -342,7 +347,7 @@ func (c *HTTPMetricsCollector) RecordRetry(method, host string, attempt int) {
 func (c *HTTPMetricsCollector) GetMetrics() *HTTPMetrics {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	
+
 	// 創建深拷貝
 	metricsCopy := &HTTPMetrics{
 		TotalRequests:      c.metrics.TotalRequests,
@@ -354,11 +359,11 @@ func (c *HTTPMetricsCollector) GetMetrics() *HTTPMetrics {
 		HostMetrics:        make(map[string]*HostMetrics),
 		LastUpdated:        c.metrics.LastUpdated,
 	}
-	
+
 	for code, count := range c.metrics.StatusCodeCounts {
 		metricsCopy.StatusCodeCounts[code] = count
 	}
-	
+
 	for host, metric := range c.metrics.HostMetrics {
 		metricsCopy.HostMetrics[host] = &HostMetrics{
 			Requests:       metric.Requests,
@@ -367,7 +372,7 @@ func (c *HTTPMetricsCollector) GetMetrics() *HTTPMetrics {
 			LastRequest:    metric.LastRequest,
 		}
 	}
-	
+
 	return metricsCopy
 }
 
@@ -375,7 +380,7 @@ func (c *HTTPMetricsCollector) GetMetrics() *HTTPMetrics {
 func (c *HTTPMetricsCollector) Reset() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.metrics = &HTTPMetrics{
 		StatusCodeCounts: make(map[int]int64),
 		HostMetrics:      make(map[string]*HostMetrics),

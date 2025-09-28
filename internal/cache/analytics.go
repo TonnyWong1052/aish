@@ -7,26 +7,26 @@ import (
 
 // CacheAnalytics 快取分析器
 type CacheAnalytics struct {
-	window    time.Duration
-	stats     *CacheAnalyticsStats
-	events    []CacheEvent
-	mu        sync.RWMutex
+	window time.Duration
+	stats  *CacheAnalyticsStats
+	events []CacheEvent
+	mu     sync.RWMutex
 }
 
 // CacheAnalyticsStats 快取分析統計
 type CacheAnalyticsStats struct {
-	TotalHits      int64     `json:"total_hits"`
-	TotalMisses    int64     `json:"total_misses"`
-	TotalSets      int64     `json:"total_sets"`
-	TotalDeletes   int64     `json:"total_deletes"`
-	HitRate        float64   `json:"hit_rate"`
-	MissRate       float64   `json:"miss_rate"`
-	AverageSize    int64     `json:"average_size"`
-	TotalSize      int64     `json:"total_size"`
-	WindowStart    time.Time `json:"window_start"`
-	WindowEnd      time.Time `json:"window_end"`
-	TopHitKeys     []string  `json:"top_hit_keys"`
-	TopMissKeys    []string  `json:"top_miss_keys"`
+	TotalHits    int64     `json:"total_hits"`
+	TotalMisses  int64     `json:"total_misses"`
+	TotalSets    int64     `json:"total_sets"`
+	TotalDeletes int64     `json:"total_deletes"`
+	HitRate      float64   `json:"hit_rate"`
+	MissRate     float64   `json:"miss_rate"`
+	AverageSize  int64     `json:"average_size"`
+	TotalSize    int64     `json:"total_size"`
+	WindowStart  time.Time `json:"window_start"`
+	WindowEnd    time.Time `json:"window_end"`
+	TopHitKeys   []string  `json:"top_hit_keys"`
+	TopMissKeys  []string  `json:"top_miss_keys"`
 }
 
 // CacheEvent 快取事件
@@ -101,7 +101,7 @@ func (ca *CacheAnalytics) RecordDelete(key string) {
 func (ca *CacheAnalytics) recordEvent(event CacheEvent) {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
-	
+
 	ca.events = append(ca.events, event)
 	ca.cleanupOldEvents()
 	ca.updateStats()
@@ -111,7 +111,7 @@ func (ca *CacheAnalytics) recordEvent(event CacheEvent) {
 func (ca *CacheAnalytics) cleanupOldEvents() {
 	now := time.Now()
 	cutoff := now.Add(-ca.window)
-	
+
 	// 找到第一個未過期的事件
 	firstValid := 0
 	for i, event := range ca.events {
@@ -120,7 +120,7 @@ func (ca *CacheAnalytics) cleanupOldEvents() {
 			break
 		}
 	}
-	
+
 	// 移除過期事件
 	if firstValid > 0 {
 		ca.events = ca.events[firstValid:]
@@ -130,7 +130,7 @@ func (ca *CacheAnalytics) cleanupOldEvents() {
 // updateStats 更新統計信息
 func (ca *CacheAnalytics) updateStats() {
 	now := time.Now()
-	
+
 	// 重置統計
 	ca.stats = &CacheAnalyticsStats{
 		WindowStart: now.Add(-ca.window),
@@ -138,12 +138,12 @@ func (ca *CacheAnalytics) updateStats() {
 		TopHitKeys:  make([]string, 0),
 		TopMissKeys: make([]string, 0),
 	}
-	
+
 	hitKeys := make(map[string]int)
 	missKeys := make(map[string]int)
 	var totalSize int64
 	var sizeCount int
-	
+
 	// 統計事件
 	for _, event := range ca.events {
 		switch event.Type {
@@ -163,20 +163,20 @@ func (ca *CacheAnalytics) updateStats() {
 			ca.stats.TotalDeletes++
 		}
 	}
-	
+
 	// 計算比率
 	totalRequests := ca.stats.TotalHits + ca.stats.TotalMisses
 	if totalRequests > 0 {
 		ca.stats.HitRate = float64(ca.stats.TotalHits) / float64(totalRequests)
 		ca.stats.MissRate = float64(ca.stats.TotalMisses) / float64(totalRequests)
 	}
-	
+
 	// 計算平均大小
 	if sizeCount > 0 {
 		ca.stats.AverageSize = totalSize / int64(sizeCount)
 	}
 	ca.stats.TotalSize = totalSize
-	
+
 	// 找出熱點鍵
 	ca.stats.TopHitKeys = ca.getTopKeys(hitKeys, 10)
 	ca.stats.TopMissKeys = ca.getTopKeys(missKeys, 10)
@@ -188,12 +188,12 @@ func (ca *CacheAnalytics) getTopKeys(keyCount map[string]int, limit int) []strin
 		key   string
 		count int
 	}
-	
+
 	var keyFreqs []keyFreq
 	for key, count := range keyCount {
 		keyFreqs = append(keyFreqs, keyFreq{key, count})
 	}
-	
+
 	// 按頻率排序
 	for i := 0; i < len(keyFreqs)-1; i++ {
 		for j := i + 1; j < len(keyFreqs); j++ {
@@ -202,7 +202,7 @@ func (ca *CacheAnalytics) getTopKeys(keyCount map[string]int, limit int) []strin
 			}
 		}
 	}
-	
+
 	// 返回前 limit 個
 	result := make([]string, 0, limit)
 	for i, kf := range keyFreqs {
@@ -211,7 +211,7 @@ func (ca *CacheAnalytics) getTopKeys(keyCount map[string]int, limit int) []strin
 		}
 		result = append(result, kf.key)
 	}
-	
+
 	return result
 }
 
@@ -219,14 +219,14 @@ func (ca *CacheAnalytics) getTopKeys(keyCount map[string]int, limit int) []strin
 func (ca *CacheAnalytics) GetStats() *CacheAnalyticsStats {
 	ca.mu.RLock()
 	defer ca.mu.RUnlock()
-	
+
 	// 返回統計信息的副本
 	statsCopy := *ca.stats
 	statsCopy.TopHitKeys = make([]string, len(ca.stats.TopHitKeys))
 	copy(statsCopy.TopHitKeys, ca.stats.TopHitKeys)
 	statsCopy.TopMissKeys = make([]string, len(ca.stats.TopMissKeys))
 	copy(statsCopy.TopMissKeys, ca.stats.TopMissKeys)
-	
+
 	return &statsCopy
 }
 
@@ -234,7 +234,7 @@ func (ca *CacheAnalytics) GetStats() *CacheAnalyticsStats {
 func (ca *CacheAnalytics) Reset() {
 	ca.mu.Lock()
 	defer ca.mu.Unlock()
-	
+
 	ca.events = make([]CacheEvent, 0)
 	ca.stats = &CacheAnalyticsStats{
 		WindowStart: time.Now(),

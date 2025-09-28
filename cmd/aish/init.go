@@ -6,10 +6,10 @@ import (
 	"path/filepath"
 	"time"
 
-    "github.com/pterm/pterm"
-    "github.com/spf13/cobra"
-    "github.com/TonnyWong1052/aish/internal/config"
-    "github.com/TonnyWong1052/aish/internal/shell"
+	"github.com/TonnyWong1052/aish/internal/config"
+	"github.com/TonnyWong1052/aish/internal/shell"
+	"github.com/pterm/pterm"
+	"github.com/spf13/cobra"
 )
 
 var initCmd = &cobra.Command{
@@ -90,7 +90,9 @@ It will:
 			cfg.Providers = make(map[string]config.ProviderConfig)
 		}
 		// 轉交給與 `aish config` 相同的邏輯，確保可用鍵盤選單等互動式體驗
+		_ = configCmd.Flags().Set("from-init", "true")
 		runConfigureLogic(configCmd, nil)
+		_ = configCmd.Flags().Set("from-init", "false")
 		fmt.Println("[aish] Config: wizard finished (you can run 'aish config' anytime)")
 	},
 }

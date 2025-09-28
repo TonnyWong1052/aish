@@ -16,17 +16,18 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-    "sync"
-    "time"
+	"sync"
+	"time"
 )
 
 // Google OAuth public client for desktop/native apps (well-known, non-confidential)
 // IMPORTANT: This pair is publicly documented and NOT a user secret.
 // We only use it as a last-resort fallback to improve UX when no client is configured.
 const (
-    DefaultPublicClientID     = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
-    DefaultPublicClientSecret = "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"
+	DefaultPublicClientID     = "681255809395-oo8ft2oprdrnp9e3aqf6av3hmdib135j.apps.googleusercontent.com"
+	DefaultPublicClientSecret = "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"
 )
+
 // OAuthCredentials represents the minimal structure we need from oauth_creds.json
 type OAuthCredentials struct {
 	ExpiryDate   int64  `json:"expiry_date"` // 毫秒
@@ -47,20 +48,20 @@ var (
 	// Global cache to avoid re-reading the file on every command
 	tokenCache *stateCache
 	// Mutex to protect cache and file operations from race conditions
-    mu sync.Mutex
+	mu sync.Mutex
 )
 
 // refreshThreshold returns the proactive refresh window. If the token will
 // expire within this duration, we attempt a refresh. Default is 2 hours, and
 // can be overridden via env var AISH_GEMINI_REFRESH_THRESHOLD (e.g. "90m", "2h").
 func refreshThreshold() time.Duration {
-    v := strings.TrimSpace(os.Getenv("AISH_GEMINI_REFRESH_THRESHOLD"))
-    if v != "" {
-        if d, err := time.ParseDuration(v); err == nil && d > 0 {
-            return d
-        }
-    }
-    return 2 * time.Hour
+	v := strings.TrimSpace(os.Getenv("AISH_GEMINI_REFRESH_THRESHOLD"))
+	if v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return 2 * time.Hour
 }
 
 // EnsureValidToken is the main entry point. It checks the token's validity
@@ -86,13 +87,13 @@ func EnsureValidToken(ctx context.Context) error {
 		return fmt.Errorf("auth: cannot stat oauth_creds.json: %v", err)
 	}
 
-    // If cache is valid (file hasn't changed), check expiry from cache
-    if tokenCache != nil && !info.ModTime().After(tokenCache.modTime) {
-        if time.Now().Add(refreshThreshold()).Before(tokenCache.expiry) {
-            // Token is still valid according to cache, no action needed
-            return nil
-        }
-    }
+	// If cache is valid (file hasn't changed), check expiry from cache
+	if tokenCache != nil && !info.ModTime().After(tokenCache.modTime) {
+		if time.Now().Add(refreshThreshold()).Before(tokenCache.expiry) {
+			// Token is still valid according to cache, no action needed
+			return nil
+		}
+	}
 
 	// --- Cache is invalid or token is expired, load fresh data from disk ---
 	creds, err := loadCredentials(credsPath)
@@ -106,10 +107,10 @@ func EnsureValidToken(ctx context.Context) error {
 		modTime: info.ModTime(),
 	}
 
-    // Check expiry again with the fresh data
-    if time.Now().Add(refreshThreshold()).Before(tokenCache.expiry) {
-        return nil // Token is valid
-    }
+	// Check expiry again with the fresh data
+	if time.Now().Add(refreshThreshold()).Before(tokenCache.expiry) {
+		return nil // Token is valid
+	}
 
 	// --- Token is confirmed將過期，嘗試自動刷新 ---
 	// 1) 優先使用本機 gemini-cli
@@ -213,24 +214,24 @@ func httpRefreshToken(credsPath string) error {
 	if err != nil {
 		return err
 	}
-    if strings.TrimSpace(clientID) == "" {
-        return errors.New("unable to resolve OAuth client_id; configure GOOGLE_OAUTH_CLIENT_ID or ensure oauth_creds.json contains id_token")
-    }
-    // Do not force client_secret here. Some public clients can refresh without a secret.
-    // If the token endpoint requires a secret, it will respond with a descriptive error
-    // which will be surfaced by formatTokenEndpointError below.
+	if strings.TrimSpace(clientID) == "" {
+		return errors.New("unable to resolve OAuth client_id; configure GOOGLE_OAUTH_CLIENT_ID or ensure oauth_creds.json contains id_token")
+	}
+	// Do not force client_secret here. Some public clients can refresh without a secret.
+	// If the token endpoint requires a secret, it will respond with a descriptive error
+	// which will be surfaced by formatTokenEndpointError below.
 
 	httpClient := &http.Client{Timeout: 20 * time.Second}
 
 	// 先嘗試符合用戶提供樣例的 JSON 請求體
-    jsonBody := map[string]any{
-        "client_id":     clientID,
-        "refresh_token": refresh,
-        "grant_type":    "refresh_token",
-    }
-    if clientSecret != "" {
-        jsonBody["client_secret"] = clientSecret
-    }
+	jsonBody := map[string]any{
+		"client_id":     clientID,
+		"refresh_token": refresh,
+		"grant_type":    "refresh_token",
+	}
+	if clientSecret != "" {
+		jsonBody["client_secret"] = clientSecret
+	}
 	jb, _ := json.Marshal(jsonBody)
 	req, _ := http.NewRequest("POST", tokenURL, bytes.NewReader(jb))
 	req.Header.Set("Content-Type", "application/json")
@@ -378,17 +379,17 @@ func resolveClientCredentials(credsPath string, raw map[string]any) (string, str
 		}
 	}
 
-    // Final fallback: if no usable client_secret is present and either
-    // 1) client_id is empty, or
-    // 2) client_id matches the public client id,
-    // then adopt the public desktop client pair. This avoids mismatching
-    // a secret for a different client_id.
-    if strings.TrimSpace(clientSecret) == "" {
-        if strings.TrimSpace(clientID) == "" || strings.TrimSpace(clientID) == DefaultPublicClientID {
-            clientID = DefaultPublicClientID
-            clientSecret = DefaultPublicClientSecret
-        }
-    }
+	// Final fallback: if no usable client_secret is present and either
+	// 1) client_id is empty, or
+	// 2) client_id matches the public client id,
+	// then adopt the public desktop client pair. This avoids mismatching
+	// a secret for a different client_id.
+	if strings.TrimSpace(clientSecret) == "" {
+		if strings.TrimSpace(clientID) == "" || strings.TrimSpace(clientID) == DefaultPublicClientID {
+			clientID = DefaultPublicClientID
+			clientSecret = DefaultPublicClientSecret
+		}
+	}
 
 	return clientID, clientSecret, nil
 }

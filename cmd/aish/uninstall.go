@@ -5,10 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/pterm/pterm"
-	"github.com/spf13/cobra"
 	"github.com/TonnyWong1052/aish/internal/config"
 	"github.com/TonnyWong1052/aish/internal/shell"
+	"github.com/pterm/pterm"
+	"github.com/spf13/cobra"
 )
 
 // uninstallCmd 提供頂層卸載指令，等同於 hook uninstall，但更直覺

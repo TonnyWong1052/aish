@@ -3,17 +3,17 @@ package classification
 import (
 	"context"
 	"time"
-	
+
 	"github.com/TonnyWong1052/aish/internal/config"
 )
 
 // RetryConfig defines configuration for error recovery retry mechanism
 type RetryConfig struct {
-	MaxRetries      int             `json:"max_retries"`      // Maximum number of retry attempts
-	BackoffFactor   time.Duration   `json:"backoff_factor"`   // Base backoff duration between retries
-	RetryableErrors []ErrorType     `json:"retryable_errors"` // List of error types that can be retried
-	MaxBackoff      time.Duration   `json:"max_backoff"`      // Maximum backoff duration
-	ExponentialBackoff bool         `json:"exponential_backoff"` // Whether to use exponential backoff
+	MaxRetries         int           `json:"max_retries"`         // Maximum number of retry attempts
+	BackoffFactor      time.Duration `json:"backoff_factor"`      // Base backoff duration between retries
+	RetryableErrors    []ErrorType   `json:"retryable_errors"`    // List of error types that can be retried
+	MaxBackoff         time.Duration `json:"max_backoff"`         // Maximum backoff duration
+	ExponentialBackoff bool          `json:"exponential_backoff"` // Whether to use exponential backoff
 }
 
 // DefaultRetryConfig returns a default retry configuration
@@ -140,15 +140,15 @@ func CalculateBackoff(attempt int, config *RetryConfig) time.Duration {
 	if !config.ExponentialBackoff {
 		return config.BackoffFactor
 	}
-	
+
 	// Exponential backoff: base * 2^attempt
 	backoff := config.BackoffFactor * time.Duration(1<<uint(attempt))
-	
+
 	// Cap at maximum backoff
 	if backoff > config.MaxBackoff {
 		backoff = config.MaxBackoff
 	}
-	
+
 	return backoff
 }
 
@@ -157,7 +157,7 @@ func ShouldRetry(errorType ErrorType, attempt int, config *RetryConfig) bool {
 	if attempt >= config.MaxRetries {
 		return false
 	}
-	
+
 	return IsRetryable(errorType, config)
 }
 
@@ -172,7 +172,7 @@ func NewRecoveryManager(config *RetryConfig) *RecoveryManager {
 	if config == nil {
 		config = DefaultRetryConfig()
 	}
-	
+
 	return &RecoveryManager{
 		config:     config,
 		strategies: GetRecoveryStrategies(),
@@ -204,26 +204,26 @@ func (rm *RecoveryManager) GetSuggestion(errorType ErrorType) string {
 // RetryWithBackoff executes a function with retry logic and exponential backoff
 func (rm *RecoveryManager) RetryWithBackoff(ctx context.Context, errorType ErrorType, fn func() error) error {
 	var lastErr error
-	
+
 	for attempt := 0; attempt < rm.config.MaxRetries; attempt++ {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
-		
+
 		// Execute the function
 		if err := fn(); err == nil {
 			return nil // Success
 		} else {
 			lastErr = err
 		}
-		
+
 		// Check if we should retry
 		if !ShouldRetry(errorType, attempt, rm.config) {
 			break
 		}
-		
+
 		// Calculate and wait for backoff
 		if attempt < rm.config.MaxRetries-1 { // Don't wait after the last attempt
 			backoff := CalculateBackoff(attempt, rm.config)
@@ -235,7 +235,7 @@ func (rm *RecoveryManager) RetryWithBackoff(ctx context.Context, errorType Error
 			}
 		}
 	}
-	
+
 	return lastErr
 }
 

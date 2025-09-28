@@ -1,33 +1,42 @@
 package ui
 
 import (
-    "context"
-    "fmt"
-    "strconv"
-    "strings"
+	"context"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
 
-    "github.com/TonnyWong1052/aish/internal/config"
-    "github.com/TonnyWong1052/aish/internal/errors"
-    "github.com/TonnyWong1052/aish/internal/llm/openai"
-    "github.com/TonnyWong1052/aish/internal/prompt"
+	"github.com/TonnyWong1052/aish/internal/config"
+	aerrors "github.com/TonnyWong1052/aish/internal/errors"
+	"github.com/TonnyWong1052/aish/internal/llm/gemini/auth"
+	"github.com/TonnyWong1052/aish/internal/llm/openai"
+	"github.com/TonnyWong1052/aish/internal/prompt"
 
 	"github.com/pterm/pterm"
 )
 
 // ConfigWizard configuration wizard
 type ConfigWizard struct {
-	config *config.Config
+	config              *config.Config
+	AdvancedGateEnabled bool
 }
 
 // NewConfigWizard creates a new configuration wizard
-func NewConfigWizard(cfg *config.Config) *ConfigWizard {
-	return &ConfigWizard{config: cfg}
+func NewConfigWizard(cfg *config.Config, advancedGate bool) *ConfigWizard {
+	return &ConfigWizard{
+		config:              cfg,
+		AdvancedGateEnabled: advancedGate,
+	}
 }
 
 // Run runs the configuration wizard
 func (w *ConfigWizard) Run() error {
 	// Show welcome message
 	w.showWelcome()
+
+	advancedPrompted := false
+	skipAdvanced := false
 
 	// Configuration steps
 	steps := []ConfigStep{
@@ -42,13 +51,30 @@ func (w *ConfigWizard) Run() error {
 
 	// Execute configuration steps
 	for i, step := range steps {
+		if w.AdvancedGateEnabled && !advancedPrompted && step.Name == "Configure Context Settings" {
+			advancedPrompted = true
+			configureAdvanced, _ := pterm.DefaultInteractiveConfirm.
+				WithDefaultValue(false).
+				Show("Would you like to configure advanced functions?")
+			if !configureAdvanced {
+				skipAdvanced = true
+			}
+		}
+
+		if skipAdvanced && (step.Name == "Configure Context Settings" ||
+			step.Name == "Configure Logging Settings" ||
+			step.Name == "Configure Cache Settings") {
+			pterm.Warning.Printf("Skipping Step %d/%d: %s\n", i+1, len(steps), step.Name)
+			continue
+		}
+
 		pterm.DefaultSection.Printf("Step %d/%d: %s", i+1, len(steps), step.Name)
 
 		if err := step.Handler(); err != nil {
-			if errors.HasCode(err, errors.ErrUserCancel) {
-				pterm.Info.Println("Configuration cancelled")
-				return err
-			}
+        if aerrors.HasCode(err, aerrors.ErrUserCancel) {
+            pterm.Info.Println("Configuration cancelled")
+            return err
+        }
 			return err
 		}
 
@@ -125,7 +151,7 @@ func (w *ConfigWizard) configureProvider() error {
 
 // configureOpenAI configures OpenAI provider
 func (w *ConfigWizard) configureOpenAI(cfg *config.ProviderConfig) error {
-    pterm.DefaultHeader.Println("OpenAI Configuration")
+	pterm.DefaultHeader.Println("OpenAI Configuration")
 
 	// API endpoint
 	defaultEndpoint := "https://api.openai.com/v1"
@@ -146,11 +172,11 @@ func (w *ConfigWizard) configureOpenAI(cfg *config.ProviderConfig) error {
 		cfg.APIEndpoint = defaultEndpoint
 	}
 
-    // 自動判斷是否需要省略 /v1 前綴（若端點路徑已包含 /v* 則不再追加）
-    cfg.OmitV1Prefix = shouldOmitV1(cfg.APIEndpoint)
+	// 自動判斷是否需要省略 /v1 前綴（若端點路徑已包含 /v* 則不再追加）
+	cfg.OmitV1Prefix = shouldOmitV1(cfg.APIEndpoint)
 
-    // API key
-    pterm.Info.Println("You can get your API key at https://platform.openai.com/api-keys")
+	// API key
+	pterm.Info.Println("You can get your API key at https://platform.openai.com/api-keys")
 	apiKey, _ := pterm.DefaultInteractiveTextInput.
 		WithMask("*").
 		WithDefaultValue(cfg.APIKey).
@@ -205,43 +231,43 @@ func (w *ConfigWizard) configureOpenAIModel(cfg *config.ProviderConfig) error {
 
 // selectModelFromAPI fetches and selects model from API
 func (w *ConfigWizard) selectModelFromAPI(cfg *config.ProviderConfig) (string, error) {
-    if cfg.APIKey == "" || cfg.APIKey == "YOUR_OPENAI_API_KEY" {
-        return "", fmt.Errorf("valid API key required to fetch model list")
-    }
+	if cfg.APIKey == "" || cfg.APIKey == "YOUR_OPENAI_API_KEY" {
+		return "", fmt.Errorf("valid API key required to fetch model list")
+	}
 
-    pterm.Info.Println("Fetching available models from OpenAI API...")
+	pterm.Info.Println("Fetching available models from OpenAI API...")
 
-    // 交由 OpenAI provider 統一處理端點與回退
-    ctx := context.Background()
-    prov, err := openai.NewProvider(*cfg, (*prompt.Manager)(nil))
-    if err != nil {
-        return "", fmt.Errorf("failed to init provider: %w", err)
-    }
-    oai, ok := prov.(*openai.OpenAIProvider)
-    if !ok {
-        return "", fmt.Errorf("provider type mismatch")
-    }
-    models, err := oai.GetAvailableModels(ctx)
-    if err != nil {
-        return "", err
-    }
-    if len(models) == 0 {
-        return "", fmt.Errorf("no available models found")
-    }
+	// 交由 OpenAI provider 統一處理端點與回退
+	ctx := context.Background()
+	prov, err := openai.NewProvider(*cfg, (*prompt.Manager)(nil))
+	if err != nil {
+		return "", fmt.Errorf("failed to init provider: %w", err)
+	}
+	oai, ok := prov.(*openai.OpenAIProvider)
+	if !ok {
+		return "", fmt.Errorf("provider type mismatch")
+	}
+	models, err := oai.GetAvailableModels(ctx)
+	if err != nil {
+		return "", err
+	}
+	if len(models) == 0 {
+		return "", fmt.Errorf("no available models found")
+	}
 
-    // Group models by category
-    gptModels := []string{}
-    otherModels := []string{}
+	// Group models by category
+	gptModels := []string{}
+	otherModels := []string{}
 
-    for _, id := range models {
-        if strings.Contains(id, "gpt-") {
-            gptModels = append(gptModels, id)
-        } else {
-            otherModels = append(otherModels, id)
-        }
-    }
+	for _, id := range models {
+		if strings.Contains(id, "gpt-") {
+			gptModels = append(gptModels, id)
+		} else {
+			otherModels = append(otherModels, id)
+		}
+	}
 
-    pterm.Success.Printf("Found %d available models\n", len(models))
+	pterm.Success.Printf("Found %d available models\n", len(models))
 
 	// Build options list
 	allOptions := []string{}
@@ -255,20 +281,20 @@ func (w *ConfigWizard) selectModelFromAPI(cfg *config.ProviderConfig) (string, e
 	}
 
 	if len(otherModels) > 0 {
-    pterm.Info.Printf("Other models (%d):\n", len(otherModels))
+		pterm.Info.Printf("Other models (%d):\n", len(otherModels))
 		for _, model := range otherModels {
 			pterm.Printf("  • %s\n", model)
 			allOptions = append(allOptions, model)
 		}
 	}
 
-    // Add manual input option
-    allOptions = append(allOptions, "Enter model name manually")
+	// Add manual input option
+	allOptions = append(allOptions, "Enter model name manually")
 
-    // Set default option
+	// Set default option
 	defaultOption := cfg.Model
 	if defaultOption == "" && len(gptModels) > 0 {
-        // Prefer common GPT models
+		// Prefer common GPT models
 		for _, commonModel := range []string{"gpt-4o", "gpt-4", "gpt-4-turbo", "gpt-3.5-turbo"} {
 			for _, availableModel := range gptModels {
 				if availableModel == commonModel {
@@ -280,20 +306,20 @@ func (w *ConfigWizard) selectModelFromAPI(cfg *config.ProviderConfig) (string, e
 				break
 			}
 		}
-        // If not found, use the first GPT model
+		// If not found, use the first GPT model
 		if defaultOption == "" {
 			defaultOption = gptModels[0]
 		}
 	}
 
-    selectedModel, _ := pterm.DefaultInteractiveSelect.
-        WithOptions(allOptions).
-        WithDefaultOption(defaultOption).
-        Show("Select a model")
+	selectedModel, _ := pterm.DefaultInteractiveSelect.
+		WithOptions(allOptions).
+		WithDefaultOption(defaultOption).
+		Show("Select a model")
 
-    if selectedModel == "Enter model name manually" {
-        return w.inputCustomModel(cfg)
-    }
+	if selectedModel == "Enter model name manually" {
+		return w.inputCustomModel(cfg)
+	}
 
 	return selectedModel, nil
 }
@@ -310,46 +336,46 @@ func (w *ConfigWizard) selectFromCommonModels(cfg *config.ProviderConfig) (strin
 		cfg.Model = "gpt-4o"
 	}
 
-    allOptions := append(commonModels, "Enter model name manually")
+	allOptions := append(commonModels, "Enter model name manually")
 
-    selectedModel, _ := pterm.DefaultInteractiveSelect.
-        WithOptions(allOptions).
-        WithDefaultOption(cfg.Model).
-        Show("Select a model")
+	selectedModel, _ := pterm.DefaultInteractiveSelect.
+		WithOptions(allOptions).
+		WithDefaultOption(cfg.Model).
+		Show("Select a model")
 
-    if selectedModel == "Enter model name manually" {
-        return w.inputCustomModel(cfg)
-    }
+	if selectedModel == "Enter model name manually" {
+		return w.inputCustomModel(cfg)
+	}
 
 	return selectedModel, nil
 }
 
 // inputCustomModel manually input model name
 func (w *ConfigWizard) inputCustomModel(cfg *config.ProviderConfig) (string, error) {
-    pterm.Info.Println("You can enter any OpenAI-supported model name.")
-    pterm.Info.Println("Examples: gpt-4o, gpt-4, gpt-3.5-turbo, text-davinci-003, etc.")
+	pterm.Info.Println("You can enter any OpenAI-supported model name.")
+	pterm.Info.Println("Examples: gpt-4o, gpt-4, gpt-3.5-turbo, text-davinci-003, etc.")
 
-    customModel, _ := pterm.DefaultInteractiveTextInput.
-        WithDefaultValue(cfg.Model).
-        Show("Enter model name")
+	customModel, _ := pterm.DefaultInteractiveTextInput.
+		WithDefaultValue(cfg.Model).
+		Show("Enter model name")
 
-    if strings.TrimSpace(customModel) == "" {
-        return "", fmt.Errorf("model name cannot be empty")
-    }
+	if strings.TrimSpace(customModel) == "" {
+		return "", fmt.Errorf("model name cannot be empty")
+	}
 
 	return strings.TrimSpace(customModel), nil
 }
 
 // shouldOmitV1 根據端點路徑是否已含 /v* 判定是否省略 /v1 自動附加
 func shouldOmitV1(endpoint string) bool {
-    e := strings.TrimSpace(strings.ToLower(endpoint))
-    e = strings.TrimSuffix(e, "/")
-    return strings.Contains(e, "/v")
+	e := strings.TrimSpace(strings.ToLower(endpoint))
+	e = strings.TrimSuffix(e, "/")
+	return strings.Contains(e, "/v")
 }
 
 // configureGemini configures Gemini provider
 func (w *ConfigWizard) configureGemini(cfg *config.ProviderConfig) error {
-    pterm.DefaultHeader.Println("Gemini Configuration")
+	pterm.DefaultHeader.Println("Gemini Configuration")
 
 	// API endpoint
 	defaultEndpoint := "https://generativelanguage.googleapis.com/v1"
@@ -361,21 +387,21 @@ func (w *ConfigWizard) configureGemini(cfg *config.ProviderConfig) error {
 		WithDefaultValue(cfg.APIEndpoint != defaultEndpoint).
 		Show("Do you want to use a custom API endpoint?")
 
-    if useCustomEndpoint {
-        endpoint, _ := pterm.DefaultInteractiveTextInput.
-            WithDefaultValue(cfg.APIEndpoint).
-            Show("Enter Gemini API endpoint")
-        cfg.APIEndpoint = endpoint
-    } else {
-        cfg.APIEndpoint = defaultEndpoint
-    }
+	if useCustomEndpoint {
+		endpoint, _ := pterm.DefaultInteractiveTextInput.
+			WithDefaultValue(cfg.APIEndpoint).
+			Show("Enter Gemini API endpoint")
+		cfg.APIEndpoint = endpoint
+	} else {
+		cfg.APIEndpoint = defaultEndpoint
+	}
 
 	// API key
-    pterm.Info.Println("You can get an API key from https://makersuite.google.com/app/apikey")
-    apiKey, _ := pterm.DefaultInteractiveTextInput.
-        WithMask("*").
-        WithDefaultValue(cfg.APIKey).
-        Show("Enter your Gemini API key")
+	pterm.Info.Println("You can get an API key from https://makersuite.google.com/app/apikey")
+	apiKey, _ := pterm.DefaultInteractiveTextInput.
+		WithMask("*").
+		WithDefaultValue(cfg.APIKey).
+		Show("Enter your Gemini API key")
 	cfg.APIKey = apiKey
 
 	// Model selection
@@ -387,44 +413,55 @@ func (w *ConfigWizard) configureGemini(cfg *config.ProviderConfig) error {
 		cfg.Model = "gemini-pro"
 	}
 
-    model, _ := pterm.DefaultInteractiveSelect.
-        WithOptions(append(commonModels, "Enter model name manually")).
-        WithDefaultOption(cfg.Model).
-        Show("Select a model")
+	model, _ := pterm.DefaultInteractiveSelect.
+		WithOptions(append(commonModels, "Enter model name manually")).
+		WithDefaultOption(cfg.Model).
+		Show("Select a model")
 
-    if model == "Enter model name manually" {
-        customModel, _ := pterm.DefaultInteractiveTextInput.
-            WithDefaultValue(cfg.Model).
-            Show("Enter model name")
-        cfg.Model = customModel
-    } else {
-        cfg.Model = model
-    }
+	if model == "Enter model name manually" {
+		customModel, _ := pterm.DefaultInteractiveTextInput.
+			WithDefaultValue(cfg.Model).
+			Show("Enter model name")
+		cfg.Model = customModel
+	} else {
+		cfg.Model = model
+	}
 
 	return nil
 }
 
 // configureGeminiCLI configures Gemini CLI provider
 func (w *ConfigWizard) configureGeminiCLI(cfg *config.ProviderConfig) error {
-    pterm.DefaultHeader.Println("Gemini CLI Configuration")
+	pterm.DefaultHeader.Println("Gemini CLI Configuration")
 
-    // API endpoint
-    defaultEndpoint := "https://cloudcode-pa.googleapis.com/v1internal"
-    if cfg.APIEndpoint == "" {
-        cfg.APIEndpoint = defaultEndpoint
-    }
-    // Gemini CLI uses a fixed endpoint; do not prompt for customization
-    cfg.APIEndpoint = defaultEndpoint
+	// API endpoint
+	defaultEndpoint := "https://cloudcode-pa.googleapis.com/v1internal"
+	if cfg.APIEndpoint == "" {
+		cfg.APIEndpoint = defaultEndpoint
+	}
+	// Gemini CLI uses a fixed endpoint; do not prompt for customization
+	cfg.APIEndpoint = defaultEndpoint
 
-    // Project ID
-    pterm.Info.Println("You need a Google Cloud Project ID.")
-    // 兩行 QA 風格提示，避免在 Show 標籤中使用換行導致游標錯位
-    pterm.Println("Enter your Google Cloud Project ID:")
-    projectID, _ := pterm.DefaultInteractiveTextInput.
-        Show(">")
-    cfg.Project = projectID
+	// Authentication method selection first
+	authOptions := []string{
+		"Authenticate now via web browser",
+		"Use existing credentials from `gemini-cli`",
+	}
+	authMethod, _ := pterm.DefaultInteractiveSelect.
+		WithOptions(authOptions).
+		WithDefaultOption("Authenticate now via web browser").
+		Show("How would you like to authenticate with Gemini CLI?")
 
-    // Model selection (only 2.5 series supported)
+	// Only ask for Project ID if using existing credentials
+	if authMethod == "Use existing credentials from `gemini-cli`" {
+		pterm.Info.Println("You need a Google Cloud Project ID for existing credentials.")
+		pterm.Println("Enter your Google Cloud Project ID:")
+		projectID, _ := pterm.DefaultInteractiveTextInput.
+			Show(">")
+		cfg.Project = projectID
+	}
+
+	// Model selection (only 2.5 series supported)
 	commonModels := []string{
 		"gemini-2.5-pro",
 		"gemini-2.5-flash",
@@ -434,18 +471,124 @@ func (w *ConfigWizard) configureGeminiCLI(cfg *config.ProviderConfig) error {
 		cfg.Model = "gemini-2.5-flash"
 	}
 
-    model, _ := pterm.DefaultInteractiveSelect.
-        WithOptions(append(commonModels, "Enter model name manually")).
-        WithDefaultOption(cfg.Model).
-        Show("Select a model")
+	model, _ := pterm.DefaultInteractiveSelect.
+		WithOptions(append(commonModels, "Enter model name manually")).
+		WithDefaultOption(cfg.Model).
+		Show("Select a model")
 
-    if model == "Enter model name manually" {
-        customModel, _ := pterm.DefaultInteractiveTextInput.
-            WithDefaultValue(cfg.Model).
-            Show("Enter model name")
-        cfg.Model = customModel
+	if model == "Enter model name manually" {
+		customModel, _ := pterm.DefaultInteractiveTextInput.
+			WithDefaultValue(cfg.Model).
+			Show("Enter model name")
+		cfg.Model = customModel
+	} else {
+		cfg.Model = model
+	}
+
+	// Handle authentication based on selection
+	if authMethod == "Authenticate now via web browser" {
+		pterm.Info.Println("Starting web-based authentication flow...")
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+		if err := auth.StartWebAuthFlow(ctx); err != nil {
+			pterm.Error.Printf("Web authentication failed: %v\n", err)
+			pterm.Warning.Println("You can try again or choose to use existing credentials.")
+			return err
+		}
+		pterm.Success.Println("Authentication credentials saved successfully.")
+		// Give a moment for the success message to be displayed
+		time.Sleep(500 * time.Millisecond)
+
+        // 認證成功後嘗試自動偵測並設定 Project ID（若尚未設定）
+        if strings.TrimSpace(cfg.Project) == "" {
+            // 快路徑：GCE/GKE metadata 或 gcloud 當前設定
+            if pid, _ := auth.AutoDetectProjectID(context.Background()); strings.TrimSpace(pid) != "" {
+                cfg.Project = pid
+                pterm.Success.Printf("Detected default project: %s\n", cfg.Project)
+            }
+
+            // 若仍無，呼叫 v3 projects.search（POST）
+            var projects []auth.GCPProject
+            if strings.TrimSpace(cfg.Project) == "" {
+                pterm.Info.Println("Searching projects via Resource Manager v3...")
+                ctxV3, cancelV3 := context.WithTimeout(context.Background(), 30*time.Second)
+                projects, err = auth.SearchProjectsV3(ctxV3)
+                cancelV3()
+                if err != nil {
+                    pterm.Warning.Printf("v3 projects.search failed: %v\n", err)
+                }
+            }
+
+            // 回退：v1 列表
+            if strings.TrimSpace(cfg.Project) == "" && len(projects) == 0 {
+                pterm.Info.Println("Listing projects via Resource Manager v1...")
+                ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Second)
+                projects, err = auth.ListActiveProjects(ctx2)
+                cancel2()
+            }
+
+            if err != nil {
+                pterm.Warning.Printf("Project auto-detection failed: %v\n", err)
+                // 提供手動輸入的機會（可直接跳過）
+                manualID, _ := pterm.DefaultInteractiveTextInput.
+                    Show("Enter your Google Cloud Project ID (or leave empty to skip)")
+                if s := strings.TrimSpace(manualID); s != "" {
+                    cfg.Project = s
+                    pterm.Success.Printf("Project set to: %s\n", cfg.Project)
+                }
+            } else if strings.TrimSpace(cfg.Project) == "" && len(projects) == 1 {
+                cfg.Project = projects[0].ProjectID
+                name := firstNonEmpty(projects[0].DisplayName, projects[0].Name)
+                if name == "" { name = cfg.Project }
+                pterm.Success.Printf("Automatically selected project: %s (%s)\n", name, cfg.Project)
+            } else if strings.TrimSpace(cfg.Project) == "" && len(projects) > 1 {
+                // 讓使用者從列表選擇
+                options := make([]string, 0, len(projects)+1)
+                labelToID := map[string]string{}
+                for _, p := range projects {
+                    label := fmt.Sprintf("%s (%s)", firstNonEmpty(firstNonEmpty(p.DisplayName, p.Name), p.ProjectID), p.ProjectID)
+                    options = append(options, label)
+                    labelToID[label] = p.ProjectID
+                }
+                options = append(options, "Skip for now")
+                choice, _ := pterm.DefaultInteractiveSelect.
+                    WithOptions(options).
+                    WithDefaultOption(options[0]).
+                    Show("Select a Google Cloud Project")
+                if id, ok := labelToID[choice]; ok && strings.TrimSpace(id) != "" {
+                    cfg.Project = id
+                    pterm.Success.Printf("Project set to: %s\n", cfg.Project)
+                }
+                // 若未選擇，嘗試用預設規則挑選（名稱含 default -> 第一個）
+                if strings.TrimSpace(cfg.Project) == "" {
+                    if def := auth.PickDefaultProject(projects); strings.TrimSpace(def) != "" {
+                        cfg.Project = def
+                        pterm.Success.Printf("Default selection applied: %s\n", cfg.Project)
+                    }
+                }
+            }
+
+            // 嘗試為已設定的專案啟用常見必要服務（失敗不阻塞；只作警示）
+            if strings.TrimSpace(cfg.Project) != "" {
+                services := []string{
+                    "serviceusage.googleapis.com",
+                    "cloudresourcemanager.googleapis.com",
+                    "iamcredentials.googleapis.com",
+                    "aiplatform.googleapis.com",
+                    "generativelanguage.googleapis.com",
+                }
+                ctx3, cancel3 := context.WithTimeout(context.Background(), 30*time.Second)
+                defer cancel3()
+                if err := auth.EnableRequiredAPIs(ctx3, cfg.Project, services); err != nil {
+                    pterm.Warning.Printf("Enabling APIs skipped or failed: %v\n", err)
+                } else {
+                    pterm.Success.Println("Verified/Enabled common APIs (where applicable)")
+                }
+            }
+        }
     } else {
-        cfg.Model = model
+        pterm.Info.Println("AISH will attempt to use existing credentials from `~/.gemini/`.")
+        pterm.Info.Println("Please ensure `gemini-cli` is installed and authenticated.")
     }
 
 	return nil
@@ -453,17 +596,25 @@ func (w *ConfigWizard) configureGeminiCLI(cfg *config.ProviderConfig) error {
 
 // configureLanguage configures language preference
 func (w *ConfigWizard) configureLanguage() error {
-    pterm.DefaultHeader.Println("Language Settings")
-    // Only English is supported for now. Set both UI and response language to English.
-    pterm.Info.Println("Only English is supported at the moment. Setting response language to English.")
-    w.config.UserPreferences.Language = "english"
-    return nil
+	pterm.DefaultHeader.Println("Language Settings")
+	// Only English is supported for now. Set both UI and response language to English.
+	pterm.Info.Println("Only English is supported at the moment. Setting response language to English.")
+	w.config.UserPreferences.Language = "english"
+	return nil
+}
+
+// firstNonEmpty 回傳第一個非空字串
+func firstNonEmpty(a, b string) string {
+    if strings.TrimSpace(a) != "" {
+        return a
+    }
+    return b
 }
 
 // configureErrorTriggers configures error triggers
 func (w *ConfigWizard) configureErrorTriggers() error {
-    pterm.DefaultHeader.Println("Error Analysis Triggers")
-    pterm.Info.Println("Select which error types should trigger AI analysis:")
+	pterm.DefaultHeader.Println("Error Analysis Triggers")
+	pterm.Info.Println("Select which error types should trigger AI analysis:")
 
 	errorTypes := []string{
 		"CommandNotFound",
@@ -477,29 +628,29 @@ func (w *ConfigWizard) configureErrorTriggers() error {
 		"GenericError",
 	}
 
-    errorDescriptions := map[string]string{
-        "CommandNotFound":         "Command not found",
-        "FileNotFoundOrDirectory": "File or directory does not exist",
-        "PermissionDenied":        "Permission denied",
-        "CannotExecute":           "Cannot execute",
-        "InvalidArgumentOrOption": "Invalid argument or option",
-        "ResourceExists":          "Resource already exists",
-        "NotADirectory":           "Not a directory",
-        "TerminatedBySignal":      "Terminated by signal",
-        "GenericError":            "Generic error",
-    }
+	errorDescriptions := map[string]string{
+		"CommandNotFound":         "Command not found",
+		"FileNotFoundOrDirectory": "File or directory does not exist",
+		"PermissionDenied":        "Permission denied",
+		"CannotExecute":           "Cannot execute",
+		"InvalidArgumentOrOption": "Invalid argument or option",
+		"ResourceExists":          "Resource already exists",
+		"NotADirectory":           "Not a directory",
+		"TerminatedBySignal":      "Terminated by signal",
+		"GenericError":            "Generic error",
+	}
 
-    // Show options
-    pterm.Info.Println("Error type descriptions:")
+	// Show options
+	pterm.Info.Println("Error type descriptions:")
 	for _, errorType := range errorTypes {
 		pterm.Printf("• %s: %s\n", errorType, errorDescriptions[errorType])
 	}
 
-    selectedTypes, _ := MultiSelectNoHelp(
-        "Select error types to enable AI analysis (space to toggle, enter to confirm):",
-        errorTypes,
-        w.config.UserPreferences.EnabledLLMTriggers,
-    )
+	selectedTypes, _ := MultiSelectNoHelp(
+		"Select error types to enable AI analysis (space to toggle, enter to confirm):",
+		errorTypes,
+		w.config.UserPreferences.EnabledLLMTriggers,
+	)
 
 	w.config.UserPreferences.EnabledLLMTriggers = selectedTypes
 	return nil
@@ -507,33 +658,33 @@ func (w *ConfigWizard) configureErrorTriggers() error {
 
 // configureContext configures context settings
 func (w *ConfigWizard) configureContext() error {
-    pterm.DefaultHeader.Println("Context Settings")
+	pterm.DefaultHeader.Println("Context Settings")
 
-    // Max history entries
-    maxHistoryStr, _ := pterm.DefaultInteractiveTextInput.
-        WithDefaultValue(fmt.Sprintf("%d", w.config.UserPreferences.Context.MaxHistoryEntries)).
-        Show("Maximum command history entries (recommended: 10)")
+	// Max history entries
+	maxHistoryStr, _ := pterm.DefaultInteractiveTextInput.
+		WithDefaultValue(fmt.Sprintf("%d", w.config.UserPreferences.Context.MaxHistoryEntries)).
+		Show("Maximum command history entries (recommended: 10)")
 
 	if maxHistory, err := strconv.Atoi(maxHistoryStr); err == nil {
 		w.config.UserPreferences.Context.MaxHistoryEntries = maxHistory
 	}
 
-    // Include directory listing
-    includeDir, _ := pterm.DefaultInteractiveConfirm.
-        WithDefaultValue(w.config.UserPreferences.Context.IncludeDirectories).
-        Show("Include current directory file listing in context?")
+	// Include directory listing
+	includeDir, _ := pterm.DefaultInteractiveConfirm.
+		WithDefaultValue(w.config.UserPreferences.Context.IncludeDirectories).
+		Show("Include current directory file listing in context?")
 	w.config.UserPreferences.Context.IncludeDirectories = includeDir
 
-    // Filter sensitive commands
-    filterSensitive, _ := pterm.DefaultInteractiveConfirm.
-        WithDefaultValue(w.config.UserPreferences.Context.FilterSensitiveCmd).
-        Show("Filter commands containing sensitive info (passwords, keys, etc.)?")
+	// Filter sensitive commands
+	filterSensitive, _ := pterm.DefaultInteractiveConfirm.
+		WithDefaultValue(w.config.UserPreferences.Context.FilterSensitiveCmd).
+		Show("Filter commands containing sensitive info (passwords, keys, etc.)?")
 	w.config.UserPreferences.Context.FilterSensitiveCmd = filterSensitive
 
-    // Enable enhanced analysis
-    enableEnhanced, _ := pterm.DefaultInteractiveConfirm.
-        WithDefaultValue(w.config.UserPreferences.Context.EnableEnhanced).
-        Show("Enable enhanced context analysis?")
+	// Enable enhanced analysis
+	enableEnhanced, _ := pterm.DefaultInteractiveConfirm.
+		WithDefaultValue(w.config.UserPreferences.Context.EnableEnhanced).
+		Show("Enable enhanced context analysis?")
 	w.config.UserPreferences.Context.EnableEnhanced = enableEnhanced
 
 	return nil
@@ -541,71 +692,71 @@ func (w *ConfigWizard) configureContext() error {
 
 // configureLogging configures logging settings
 func (w *ConfigWizard) configureLogging() error {
-    pterm.DefaultHeader.Println("Logging Settings")
+	pterm.DefaultHeader.Println("Logging Settings")
 
-    // Log level
-    levels := []string{"trace", "debug", "info", "warn", "error"}
-    level, _ := pterm.DefaultInteractiveSelect.
-        WithOptions(levels).
-        WithDefaultOption(w.config.UserPreferences.Logging.Level).
-        Show("Select log level")
-    w.config.UserPreferences.Logging.Level = level
+	// Log level
+	levels := []string{"trace", "debug", "info", "warn", "error"}
+	level, _ := pterm.DefaultInteractiveSelect.
+		WithOptions(levels).
+		WithDefaultOption(w.config.UserPreferences.Logging.Level).
+		Show("Select log level")
+	w.config.UserPreferences.Logging.Level = level
 
-    // Log format
-    formats := []string{"text", "json"}
-    format, _ := pterm.DefaultInteractiveSelect.
-        WithOptions(formats).
-        WithDefaultOption(w.config.UserPreferences.Logging.Format).
-        Show("Select log format")
-    w.config.UserPreferences.Logging.Format = format
+	// Log format
+	formats := []string{"text", "json"}
+	format, _ := pterm.DefaultInteractiveSelect.
+		WithOptions(formats).
+		WithDefaultOption(w.config.UserPreferences.Logging.Format).
+		Show("Select log format")
+	w.config.UserPreferences.Logging.Format = format
 
-    // Log output
-    outputs := []string{"file", "console", "both"}
-    output, _ := pterm.DefaultInteractiveSelect.
-        WithOptions(outputs).
-        WithDefaultOption(w.config.UserPreferences.Logging.Output).
-        Show("Select log output")
-    w.config.UserPreferences.Logging.Output = output
+	// Log output
+	outputs := []string{"file", "console", "both"}
+	output, _ := pterm.DefaultInteractiveSelect.
+		WithOptions(outputs).
+		WithDefaultOption(w.config.UserPreferences.Logging.Output).
+		Show("Select log output")
+	w.config.UserPreferences.Logging.Output = output
 
 	return nil
 }
 
 // configureCache configures cache settings
 func (w *ConfigWizard) configureCache() error {
-    pterm.DefaultHeader.Println("Cache Settings")
+	pterm.DefaultHeader.Println("Cache Settings")
 
-    // Enable cache
-    enabled, _ := pterm.DefaultInteractiveConfirm.
-        WithDefaultValue(w.config.UserPreferences.Cache.Enabled).
-        Show("Enable response caching (improves speed and saves API costs)?")
+	// Enable cache
+	enabled, _ := pterm.DefaultInteractiveConfirm.
+		WithDefaultValue(w.config.UserPreferences.Cache.Enabled).
+		Show("Enable response caching (improves speed and saves API costs)?")
 	w.config.UserPreferences.Cache.Enabled = enabled
 
-    if !enabled {
-        pterm.Info.Println("Cache disabled. Skipping other cache settings.")
-        return nil
-    }
+	if !enabled {
+		pterm.Info.Println("Cache disabled. Skipping other cache settings.")
+		return nil
+	}
 
-    // Similarity matching
-    enableSimilarity, _ := pterm.DefaultInteractiveConfirm.
-        WithDefaultValue(w.config.UserPreferences.Cache.EnableSimilarity).
-        Show("Enable intelligent similarity matching (reuse cache for similar queries)?")
+	// Similarity matching
+	enableSimilarity, _ := pterm.DefaultInteractiveConfirm.
+		WithDefaultValue(w.config.UserPreferences.Cache.EnableSimilarity).
+		Show("Enable intelligent similarity matching (reuse cache for similar queries)?")
 	w.config.UserPreferences.Cache.EnableSimilarity = enableSimilarity
 
-    if enableSimilarity {
-        // Similarity threshold
-        thresholdStr, _ := pterm.DefaultInteractiveTextInput.
-            WithDefaultValue(fmt.Sprintf("%.2f", w.config.UserPreferences.Cache.SimilarityThreshold)).
-            Show("Similarity threshold (0.0-1.0, recommended: 0.85)")
+	if enableSimilarity {
+		// Similarity threshold
+		thresholdStr, _ := pterm.DefaultInteractiveTextInput.
+			WithDefaultValue(fmt.Sprintf("%.2f", w.config.UserPreferences.Cache.SimilarityThreshold)).
+			Show("Similarity threshold (0.0-1.0, recommended: 0.85)")
 
 		if threshold, err := strconv.ParseFloat(thresholdStr, 64); err == nil {
 			w.config.UserPreferences.Cache.SimilarityThreshold = threshold
 		}
 	}
 
-    // Cache size
-    maxEntriesStr, _ := pterm.DefaultInteractiveTextInput.
-        WithDefaultValue(fmt.Sprintf("%d", w.config.UserPreferences.Cache.MaxEntries)).
-        Show("Maximum cache entries (recommended: 1000)")
+	// Cache size
+	maxEntriesStr, _ := pterm.DefaultInteractiveTextInput.
+		WithDefaultValue(fmt.Sprintf("%d", w.config.UserPreferences.Cache.MaxEntries)).
+		Show("Maximum cache entries (recommended: 1000)")
 
 	if maxEntries, err := strconv.Atoi(maxEntriesStr); err == nil {
 		w.config.UserPreferences.Cache.MaxEntries = maxEntries
@@ -616,17 +767,17 @@ func (w *ConfigWizard) configureCache() error {
 
 // finishConfiguration completes configuration
 func (w *ConfigWizard) finishConfiguration() error {
-    pterm.DefaultHeader.Println("Configuration Complete")
+	pterm.DefaultHeader.Println("Configuration Complete")
 
-    // Validate configuration
-    pterm.Info.Println("Validating configuration...")
+	// Validate configuration
+	pterm.Info.Println("Validating configuration...")
 	fixes, err := w.config.ValidateAndFix()
 	if err != nil {
-        pterm.Error.Println("Configuration validation failed:", err)
+		pterm.Error.Println("Configuration validation failed:", err)
 
-        retry, _ := pterm.DefaultInteractiveConfirm.
-            WithDefaultValue(true).
-            Show("Run the configuration wizard again?")
+		retry, _ := pterm.DefaultInteractiveConfirm.
+			WithDefaultValue(true).
+			Show("Run the configuration wizard again?")
 
 		if retry {
 			return w.Run()
@@ -634,58 +785,58 @@ func (w *ConfigWizard) finishConfiguration() error {
 		return err
 	}
 
-    if len(fixes) > 0 {
-        pterm.Info.Println("Automatically fixed the following issues:")
-        for _, fix := range fixes {
-            pterm.Printf("• %s\n", fix)
-        }
-    }
+	if len(fixes) > 0 {
+		pterm.Info.Println("Automatically fixed the following issues:")
+		for _, fix := range fixes {
+			pterm.Printf("• %s\n", fix)
+		}
+	}
 
-    // Save configuration
-    pterm.Info.Println("Saving configuration...")
+	// Save configuration
+	pterm.Info.Println("Saving configuration...")
     if err := w.config.Save(); err != nil {
-        return errors.ErrConfigSaveFailed("", err)
+        return aerrors.ErrConfigSaveFailed("", err)
     }
 
-    // Show configuration summary
-    w.showConfigurationSummary()
+	// Show configuration summary
+	w.showConfigurationSummary()
 
-    pterm.Success.Println("🎉 AISH configuration completed!")
-    pterm.Info.Println("You can now use these commands:")
-    pterm.Printf("• %s: Install the shell hook\n", pterm.LightBlue("aish setup"))
-    pterm.Printf("• %s: Test AI command generation\n", pterm.LightBlue("aish -p \"your prompt\""))
-    pterm.Printf("• %s: View configuration\n", pterm.LightBlue("aish config show"))
+	pterm.Success.Println("🎉 AISH configuration completed!")
+	pterm.Info.Println("You can now use these commands:")
+	pterm.Printf("• %s: Install the shell hook\n", pterm.LightBlue("aish setup"))
+	pterm.Printf("• %s: Test AI command generation\n", pterm.LightBlue("aish -p \"your prompt\""))
+	pterm.Printf("• %s: View configuration\n", pterm.LightBlue("aish config show"))
 
 	return nil
 }
 
 // showConfigurationSummary shows configuration summary
 func (w *ConfigWizard) showConfigurationSummary() {
-    pterm.DefaultSection.Println("Configuration Summary")
+	pterm.DefaultSection.Println("Configuration Summary")
 
-    // Provider info
-    pterm.Printf("• LLM Provider: %s\n", w.config.DefaultProvider)
+	// Provider info
+	pterm.Printf("• LLM Provider: %s\n", w.config.DefaultProvider)
 	if providerCfg, exists := w.config.Providers[w.config.DefaultProvider]; exists {
-        pterm.Printf("• Model: %s\n", providerCfg.Model)
-        pterm.Printf("• API Endpoint: %s\n", providerCfg.APIEndpoint)
+		pterm.Printf("• Model: %s\n", providerCfg.Model)
+		pterm.Printf("• API Endpoint: %s\n", providerCfg.APIEndpoint)
 	}
 
-    // User preferences
-    pterm.Printf("• Response Language: %s\n", w.config.UserPreferences.Language)
-    pterm.Printf("• Enabled Error Triggers: %d\n", len(w.config.UserPreferences.EnabledLLMTriggers))
+	// User preferences
+	pterm.Printf("• Response Language: %s\n", w.config.UserPreferences.Language)
+	pterm.Printf("• Enabled Error Triggers: %d\n", len(w.config.UserPreferences.EnabledLLMTriggers))
 
-    // Feature flags
-    pterm.Printf("• Cache: %s\n", boolToStatus(w.config.UserPreferences.Cache.Enabled))
-    pterm.Printf("• Similarity Matching: %s\n", boolToStatus(w.config.UserPreferences.Cache.EnableSimilarity))
-    pterm.Printf("• Enhanced Context: %s\n", boolToStatus(w.config.UserPreferences.Context.EnableEnhanced))
+	// Feature flags
+	pterm.Printf("• Cache: %s\n", boolToStatus(w.config.UserPreferences.Cache.Enabled))
+	pterm.Printf("• Similarity Matching: %s\n", boolToStatus(w.config.UserPreferences.Cache.EnableSimilarity))
+	pterm.Printf("• Enhanced Context: %s\n", boolToStatus(w.config.UserPreferences.Context.EnableEnhanced))
 
 	pterm.Println()
 }
 
 // boolToStatus converts boolean to status label
 func boolToStatus(enabled bool) string {
-    if enabled {
-        return pterm.LightGreen("Enabled")
-    }
-    return pterm.LightRed("Disabled")
+	if enabled {
+		return pterm.LightGreen("Enabled")
+	}
+	return pterm.LightRed("Disabled")
 }

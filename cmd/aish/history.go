@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/pterm/pterm"
-	"github.com/spf13/cobra"
 	"github.com/TonnyWong1052/aish/internal/config"
 	"github.com/TonnyWong1052/aish/internal/history"
 	"github.com/TonnyWong1052/aish/internal/llm"
 	"github.com/TonnyWong1052/aish/internal/ui"
+	"github.com/pterm/pterm"
+	"github.com/spf13/cobra"
 )
 
 // This is the new parent command for history

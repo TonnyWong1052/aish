@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/TonnyWong1052/aish/internal/errors"
+	aerrors "github.com/TonnyWong1052/aish/internal/errors"
 )
 
 // Encryptor encryption interface
@@ -42,21 +42,21 @@ func (e *AESEncryptor) Encrypt(plaintext string) (string, error) {
 
 	// Create AES cipher
 	block, err := aes.NewCipher(e.key)
-	if err != nil {
-		return "", errors.WrapError(err, errors.ErrCacheError, "Failed to create AES cipher")
-	}
+    if err != nil {
+        return "", aerrors.WrapError(err, aerrors.ErrCacheError, "Failed to create AES cipher")
+    }
 
 	// Create GCM
 	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", errors.WrapError(err, errors.ErrCacheError, "創建 GCM 失敗")
-	}
+    if err != nil {
+        return "", aerrors.WrapError(err, aerrors.ErrCacheError, "創建 GCM 失敗")
+    }
 
 	// Generate random nonce
 	nonce := make([]byte, gcm.NonceSize())
-	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
-		return "", errors.WrapError(err, errors.ErrCacheError, "生成 nonce 失敗")
-	}
+    if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+        return "", aerrors.WrapError(err, aerrors.ErrCacheError, "生成 nonce 失敗")
+    }
 
 	// Encrypt data
 	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
@@ -73,36 +73,36 @@ func (e *AESEncryptor) Decrypt(ciphertext string) (string, error) {
 
 	// base64 decode
 	data, err := base64.StdEncoding.DecodeString(ciphertext)
-	if err != nil {
-		return "", errors.WrapError(err, errors.ErrCacheError, "base64 解碼失敗")
-	}
+    if err != nil {
+        return "", aerrors.WrapError(err, aerrors.ErrCacheError, "base64 解碼失敗")
+    }
 
 	// Create AES cipher
 	block, err := aes.NewCipher(e.key)
-	if err != nil {
-		return "", errors.WrapError(err, errors.ErrCacheError, "Failed to create AES cipher")
-	}
+    if err != nil {
+        return "", aerrors.WrapError(err, aerrors.ErrCacheError, "Failed to create AES cipher")
+    }
 
 	// Create GCM
 	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return "", errors.WrapError(err, errors.ErrCacheError, "創建 GCM 失敗")
-	}
+    if err != nil {
+        return "", aerrors.WrapError(err, aerrors.ErrCacheError, "創建 GCM 失敗")
+    }
 
 	// Check data length
 	nonceSize := gcm.NonceSize()
-	if len(data) < nonceSize {
-		return "", errors.NewError(errors.ErrCacheError, "加密數據長度不足")
-	}
+    if len(data) < nonceSize {
+        return "", aerrors.NewError(aerrors.ErrCacheError, "加密數據長度不足")
+    }
 
 	// Separate nonce and ciphertext
 	nonce, cipherData := data[:nonceSize], data[nonceSize:]
 
 	// Decrypt data
 	plaintext, err := gcm.Open(nil, nonce, cipherData, nil)
-	if err != nil {
-		return "", errors.WrapError(err, errors.ErrCacheError, "解密失敗")
-	}
+    if err != nil {
+        return "", aerrors.WrapError(err, aerrors.ErrCacheError, "解密失敗")
+    }
 
 	return string(plaintext), nil
 }
@@ -206,18 +206,18 @@ func loadOrCreatePassphrase(keyFile string) (string, error) {
 // generateRandomPassphrase generates random passphrase
 func generateRandomPassphrase() (string, error) {
 	bytes := make([]byte, 32)
-	if _, err := rand.Read(bytes); err != nil {
-		return "", errors.WrapError(err, errors.ErrCacheError, "生成隨機密碼短語失敗")
-	}
+    if _, err := rand.Read(bytes); err != nil {
+        return "", aerrors.WrapError(err, aerrors.ErrCacheError, "生成隨機密碼短語失敗")
+    }
 	return base64.StdEncoding.EncodeToString(bytes), nil
 }
 
 // savePassphrase saves passphrase
 func savePassphrase(keyFile, passphrase string) error {
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(keyFile), 0700); err != nil {
-		return errors.ErrFileSystemError("create_key_dir", filepath.Dir(keyFile), err)
-	}
+    if err := os.MkdirAll(filepath.Dir(keyFile), 0700); err != nil {
+        return aerrors.ErrFileSystemError("create_key_dir", filepath.Dir(keyFile), err)
+    }
 
 	// Encrypt passphrase using machine fingerprint
 	machineKey := getMachineFingerprint()
@@ -228,9 +228,9 @@ func savePassphrase(keyFile, passphrase string) error {
 	}
 
 	// Write to file (set strict permissions)
-	if err := os.WriteFile(keyFile, []byte(encrypted), 0600); err != nil {
-		return errors.ErrFileSystemError("write_key_file", keyFile, err)
-	}
+    if err := os.WriteFile(keyFile, []byte(encrypted), 0600); err != nil {
+        return aerrors.ErrFileSystemError("write_key_file", keyFile, err)
+    }
 
 	return nil
 }
@@ -321,20 +321,20 @@ func ValidateEncryption(encryptor Encryptor) error {
 
 	// Encryption test
 	encrypted, err := encryptor.Encrypt(testData)
-	if err != nil {
-		return errors.WrapError(err, errors.ErrCacheError, "加密驗證失敗")
-	}
+    if err != nil {
+        return aerrors.WrapError(err, aerrors.ErrCacheError, "加密驗證失敗")
+    }
 
 	// Decryption test
 	decrypted, err := encryptor.Decrypt(encrypted)
-	if err != nil {
-		return errors.WrapError(err, errors.ErrCacheError, "解密驗證失敗")
-	}
+    if err != nil {
+        return aerrors.WrapError(err, aerrors.ErrCacheError, "解密驗證失敗")
+    }
 
 	// Verify result
-	if decrypted != testData {
-		return errors.NewError(errors.ErrCacheError, "加密驗證失敗：解密結果不匹配")
-	}
+    if decrypted != testData {
+        return aerrors.NewError(aerrors.ErrCacheError, "加密驗證失敗：解密結果不匹配")
+    }
 
 	return nil
 }

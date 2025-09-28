@@ -1,12 +1,12 @@
 package history
 
 import (
-    "log"
-    "os"
-    "path/filepath"
-    "github.com/TonnyWong1052/aish/internal/classification"
-    "github.com/TonnyWong1052/aish/internal/config"
-    "time"
+	"github.com/TonnyWong1052/aish/internal/classification"
+	"github.com/TonnyWong1052/aish/internal/config"
+	"log"
+	"os"
+	"path/filepath"
+	"time"
 )
 
 // Entry represents a single command record in the history.

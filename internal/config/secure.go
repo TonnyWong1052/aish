@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/TonnyWong1052/aish/internal/crypto"
-	"github.com/TonnyWong1052/aish/internal/errors"
+	aerrors "github.com/TonnyWong1052/aish/internal/errors"
 )
 
 // SecureConfig 安全配置管理器
@@ -27,9 +27,9 @@ func NewSecureConfig(cfg *Config) (*SecureConfig, error) {
 
 	// 創建秘密管理器
 	secretManager, err := crypto.NewSecretManager(configDir)
-	if err != nil {
-		return nil, errors.WrapError(err, errors.ErrConfigLoad, "創建秘密管理器失敗")
-	}
+    if err != nil {
+        return nil, aerrors.WrapError(err, aerrors.ErrConfigLoad, "創建秘密管理器失敗")
+    }
 
 	return &SecureConfig{
 		Config:        cfg,
@@ -80,10 +80,10 @@ func (sc *SecureConfig) EncryptSensitiveData() error {
 	for providerName, providerConfig := range sc.Providers {
 		if providerConfig.APIKey != "" {
 			encryptedKey, err := sc.secretManager.EncryptAPIKey(providerConfig.APIKey)
-			if err != nil {
-				return errors.WrapError(err, errors.ErrConfigSave,
-					fmt.Sprintf("加密 %s 提供商的 API 密鑰失敗", providerName))
-			}
+            if err != nil {
+                return aerrors.WrapError(err, aerrors.ErrConfigSave,
+                    fmt.Sprintf("加密 %s 提供商的 API 密鑰失敗", providerName))
+            }
 			providerConfig.APIKey = encryptedKey
 			sc.Providers[providerName] = providerConfig
 		}
@@ -114,7 +114,7 @@ func (sc *SecureConfig) DecryptSensitiveData() error {
 func (sc *SecureConfig) GetDecryptedAPIKey(providerName string) (string, error) {
 	providerConfig, exists := sc.Providers[providerName]
 	if !exists {
-		return "", errors.NewError(errors.ErrProviderNotFound,
+        return "", aerrors.NewError(aerrors.ErrProviderNotFound,
 			fmt.Sprintf("提供商 '%s' 不存在", providerName))
 	}
 
@@ -130,10 +130,10 @@ func (sc *SecureConfig) SetAPIKey(providerName, apiKey string) error {
 
 	// 加密 API 密鑰
 	encryptedKey, err := sc.secretManager.EncryptAPIKey(apiKey)
-	if err != nil {
-		return errors.WrapError(err, errors.ErrConfigSave,
+    if err != nil {
+        return aerrors.WrapError(err, aerrors.ErrConfigSave,
 			fmt.Sprintf("加密 %s 提供商的 API 密鑰失敗", providerName))
-	}
+    }
 
 	providerConfig.APIKey = encryptedKey
 	sc.Providers[providerName] = providerConfig
@@ -162,13 +162,13 @@ func (sc *SecureConfig) CreateSecureBackup() (string, error) {
 
 	// 創建備份
 	data, err := json.MarshalIndent(sc.Config, "", "  ")
-	if err != nil {
-		return "", errors.ErrConfigSaveFailed(backupPath, err)
-	}
+    if err != nil {
+        return "", aerrors.ErrConfigSaveFailed(backupPath, err)
+    }
 
-	if err := os.WriteFile(backupPath, data, 0600); err != nil {
-		return "", errors.ErrConfigSaveFailed(backupPath, err)
-	}
+    if err := os.WriteFile(backupPath, data, 0600); err != nil {
+        return "", aerrors.ErrConfigSaveFailed(backupPath, err)
+    }
 
 	return backupPath, nil
 }

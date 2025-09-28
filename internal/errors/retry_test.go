@@ -9,15 +9,15 @@ import (
 
 func TestRetryManager_Execute_Success(t *testing.T) {
 	manager := NewRetryManager(nil)
-	
+
 	callCount := 0
 	fn := func(ctx context.Context) error {
 		callCount++
 		return nil // 成功
 	}
-	
+
 	result := manager.Execute(context.Background(), fn)
-	
+
 	if !result.Success {
 		t.Error("Expected success")
 	}
@@ -38,7 +38,7 @@ func TestRetryManager_Execute_RetryableError(t *testing.T) {
 		Jitter:        false,
 	}
 	manager := NewRetryManager(config)
-	
+
 	callCount := 0
 	fn := func(ctx context.Context) error {
 		callCount++
@@ -47,9 +47,9 @@ func TestRetryManager_Execute_RetryableError(t *testing.T) {
 		}
 		return nil // 第三次成功
 	}
-	
+
 	result := manager.Execute(context.Background(), fn)
-	
+
 	if !result.Success {
 		t.Error("Expected success after retries")
 	}
@@ -63,15 +63,15 @@ func TestRetryManager_Execute_RetryableError(t *testing.T) {
 
 func TestRetryManager_Execute_NonRetryableError(t *testing.T) {
 	manager := NewRetryManager(nil)
-	
+
 	callCount := 0
 	fn := func(ctx context.Context) error {
 		callCount++
 		return NewError(ErrUserCancel, "User cancelled")
 	}
-	
+
 	result := manager.Execute(context.Background(), fn)
-	
+
 	if result.Success {
 		t.Error("Expected failure")
 	}
@@ -92,15 +92,15 @@ func TestRetryManager_Execute_MaxAttemptsReached(t *testing.T) {
 		Jitter:        false,
 	}
 	manager := NewRetryManager(config)
-	
+
 	callCount := 0
 	fn := func(ctx context.Context) error {
 		callCount++
 		return NewRetryableError(ErrNetwork, "Network error")
 	}
-	
+
 	result := manager.Execute(context.Background(), fn)
-	
+
 	if result.Success {
 		t.Error("Expected failure")
 	}
@@ -114,9 +114,9 @@ func TestRetryManager_Execute_MaxAttemptsReached(t *testing.T) {
 
 func TestRetryManager_Execute_ContextCancellation(t *testing.T) {
 	manager := NewRetryManager(nil)
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	callCount := 0
 	fn := func(ctx context.Context) error {
 		callCount++
@@ -126,9 +126,9 @@ func TestRetryManager_Execute_ContextCancellation(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	result := manager.Execute(ctx, fn)
-	
+
 	if result.Success {
 		t.Error("Expected failure due to context cancellation")
 	}
@@ -146,17 +146,17 @@ func TestRetryManager_ExecuteWithCallback(t *testing.T) {
 		Jitter:        false,
 	}
 	manager := NewRetryManager(config)
-	
+
 	callbackCalls := 0
 	var callbackErrors []error
 	var callbackAttempts []int
-	
+
 	onRetry := func(attempt int, err error) {
 		callbackCalls++
 		callbackErrors = append(callbackErrors, err)
 		callbackAttempts = append(callbackAttempts, attempt)
 	}
-	
+
 	callCount := 0
 	fn := func(ctx context.Context) error {
 		callCount++
@@ -165,9 +165,9 @@ func TestRetryManager_ExecuteWithCallback(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	result := manager.ExecuteWithCallback(context.Background(), fn, onRetry)
-	
+
 	if !result.Success {
 		t.Error("Expected success")
 	}
@@ -178,7 +178,7 @@ func TestRetryManager_ExecuteWithCallback(t *testing.T) {
 
 func TestShouldRetry(t *testing.T) {
 	manager := NewRetryManager(nil)
-	
+
 	tests := []struct {
 		name     string
 		err      error
@@ -215,7 +215,7 @@ func TestShouldRetry(t *testing.T) {
 			expected: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := manager.shouldRetry(tt.err)
@@ -252,18 +252,18 @@ func TestCalculateDelay(t *testing.T) {
 			},
 			baseDelay: time.Second,
 			attempt:   1,
-			minDelay:  750 * time.Millisecond, // ~25% less
+			minDelay:  750 * time.Millisecond,  // ~25% less
 			maxDelay:  1250 * time.Millisecond, // ~25% more
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			manager := NewRetryManager(tt.config)
 			delay := manager.calculateDelay(tt.baseDelay, tt.attempt)
-			
+
 			if delay < tt.minDelay || delay > tt.maxDelay {
-				t.Errorf("calculateDelay() = %v, want between %v and %v", 
+				t.Errorf("calculateDelay() = %v, want between %v and %v",
 					delay, tt.minDelay, tt.maxDelay)
 			}
 		})
@@ -279,9 +279,9 @@ func TestRetry_ConvenienceFunction(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	result := Retry(context.Background(), fn)
-	
+
 	if !result.Success {
 		t.Error("Expected success")
 	}
@@ -298,7 +298,7 @@ func TestRetryWithConfig_ConvenienceFunction(t *testing.T) {
 		BackoffFactor: 1.5,
 		Jitter:        false,
 	}
-	
+
 	callCount := 0
 	fn := func(ctx context.Context) error {
 		callCount++
@@ -307,9 +307,9 @@ func TestRetryWithConfig_ConvenienceFunction(t *testing.T) {
 		}
 		return nil
 	}
-	
+
 	result := RetryWithConfig(context.Background(), config, fn)
-	
+
 	if !result.Success {
 		t.Error("Expected success")
 	}
@@ -345,7 +345,7 @@ func TestIsRetryableError(t *testing.T) {
 			expected: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := IsRetryableError(tt.err)
@@ -359,19 +359,19 @@ func TestIsRetryableError(t *testing.T) {
 func TestWrapRetryableError(t *testing.T) {
 	originalErr := errors.New("original error")
 	wrappedErr := WrapRetryableError(originalErr, ErrNetwork, "Network operation failed")
-	
+
 	if wrappedErr == nil {
 		t.Fatal("Expected non-nil error")
 	}
-	
+
 	if !wrappedErr.IsRetryable() {
 		t.Error("Expected error to be retryable")
 	}
-	
+
 	if wrappedErr.Code != ErrNetwork {
 		t.Errorf("Expected code %v, got %v", ErrNetwork, wrappedErr.Code)
 	}
-	
+
 	if wrappedErr.Unwrap() != originalErr {
 		t.Error("Expected wrapped error to unwrap to original error")
 	}
@@ -412,12 +412,12 @@ func TestFormatRetryResult(t *testing.T) {
 			contains: "操作失敗，已嘗試 3 次",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			formatted := FormatRetryResult(tt.result)
 			if !contains(formatted, tt.contains) {
-				t.Errorf("Expected formatted result to contain %q, got %q", 
+				t.Errorf("Expected formatted result to contain %q, got %q",
 					tt.contains, formatted)
 			}
 		})
@@ -426,7 +426,7 @@ func TestFormatRetryResult(t *testing.T) {
 
 // Helper function to check if string contains substring
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && 
+	return len(s) >= len(substr) &&
 		(len(substr) == 0 || findSubstring(s, substr) >= 0)
 }
 

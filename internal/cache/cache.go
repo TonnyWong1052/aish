@@ -8,7 +8,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/TonnyWong1052/aish/internal/errors"
+	aerrors "github.com/TonnyWong1052/aish/internal/errors"
+    "sync"
 )
 
 // CacheEntry cache entry
@@ -60,9 +61,11 @@ func DefaultCacheConfig() CacheConfig {
 
 // Cache 緩存實現
 type Cache struct {
-	config CacheConfig
-	index  map[string]*CacheEntry
-	stats  CacheStats
+    config CacheConfig
+    index  map[string]*CacheEntry
+    stats  CacheStats
+    stopCh   chan struct{}
+    stopOnce sync.Once
 }
 
 // CacheStats 緩存統計
@@ -92,17 +95,18 @@ func NewCache(config CacheConfig) (*Cache, error) {
 	}
 
 	// 創建緩存目錄
-	if err := os.MkdirAll(config.CacheDir, 0755); err != nil {
-		return nil, errors.ErrFileSystemError("create_cache_dir", config.CacheDir, err)
-	}
+    if err := os.MkdirAll(config.CacheDir, 0755); err != nil {
+        return nil, aerrors.ErrFileSystemError("create_cache_dir", config.CacheDir, err)
+    }
 
-	cache := &Cache{
-		config: config,
-		index:  make(map[string]*CacheEntry),
-		stats: CacheStats{
-			LastCleanup: time.Now(),
-		},
-	}
+    cache := &Cache{
+        config: config,
+        index:  make(map[string]*CacheEntry),
+        stats: CacheStats{
+            LastCleanup: time.Now(),
+        },
+        stopCh: make(chan struct{}),
+    }
 
 	// 加載現有緩存索引
 	if err := cache.loadIndex(); err != nil {
@@ -168,9 +172,9 @@ func (c *Cache) Set(key, value string, ttl time.Duration) error {
 	}
 
 	// 檢查值大小
-	if int64(len(value)) > c.config.MaxFileSize {
-		return errors.NewError(errors.ErrCacheError, "緩存值過大")
-	}
+    if int64(len(value)) > c.config.MaxFileSize {
+        return aerrors.NewError(aerrors.ErrCacheError, "緩存值過大")
+    }
 
 	hashedKey := c.hashKey(key)
 	now := time.Now()
@@ -301,12 +305,17 @@ func (c *Cache) evictLRU() {
 
 // startCleanupRoutine 啟動清理協程
 func (c *Cache) startCleanupRoutine() {
-	ticker := time.NewTicker(c.config.CleanupInterval)
-	defer ticker.Stop()
+    ticker := time.NewTicker(c.config.CleanupInterval)
+    defer ticker.Stop()
 
-	for range ticker.C {
-		c.Cleanup()
-	}
+    for {
+        select {
+        case <-ticker.C:
+            c.Cleanup()
+        case <-c.stopCh:
+            return
+        }
+    }
 }
 
 // hashKey 對鍵進行哈希
@@ -318,19 +327,19 @@ func (c *Cache) hashKey(key string) string {
 // readCacheFile 讀取緩存文件
 func (c *Cache) readCacheFile(hashedKey string) (string, error) {
 	cacheFile := filepath.Join(c.config.CacheDir, hashedKey)
-	data, err := os.ReadFile(cacheFile)
-	if err != nil {
-		return "", errors.ErrFileSystemError("read_cache", cacheFile, err)
-	}
+    data, err := os.ReadFile(cacheFile)
+    if err != nil {
+        return "", aerrors.ErrFileSystemError("read_cache", cacheFile, err)
+    }
 	return string(data), nil
 }
 
 // writeCacheFile 寫入緩存文件
 func (c *Cache) writeCacheFile(hashedKey, content string) error {
 	cacheFile := filepath.Join(c.config.CacheDir, hashedKey)
-	if err := os.WriteFile(cacheFile, []byte(content), 0644); err != nil {
-		return errors.ErrFileSystemError("write_cache", cacheFile, err)
-	}
+    if err := os.WriteFile(cacheFile, []byte(content), 0644); err != nil {
+        return aerrors.ErrFileSystemError("write_cache", cacheFile, err)
+    }
 	return nil
 }
 
@@ -339,17 +348,17 @@ func (c *Cache) loadIndex() error {
 	indexFile := filepath.Join(c.config.CacheDir, "index.json")
 
 	data, err := os.ReadFile(indexFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil // 索引文件不存在是正常的
-		}
-		return errors.ErrFileSystemError("read_index", indexFile, err)
-	}
+    if err != nil {
+        if os.IsNotExist(err) {
+            return nil // 索引文件不存在是正常的
+        }
+        return aerrors.ErrFileSystemError("read_index", indexFile, err)
+    }
 
 	var index map[string]*CacheEntry
-	if err := json.Unmarshal(data, &index); err != nil {
-		return errors.ErrFileSystemError("parse_index", indexFile, err)
-	}
+    if err := json.Unmarshal(data, &index); err != nil {
+        return aerrors.ErrFileSystemError("parse_index", indexFile, err)
+    }
 
 	c.index = index
 	c.stats.Entries = len(index)
@@ -365,19 +374,22 @@ func (c *Cache) saveIndex() error {
 
 	indexFile := filepath.Join(c.config.CacheDir, "index.json")
 
-	data, err := json.MarshalIndent(c.index, "", "  ")
-	if err != nil {
-		return errors.ErrFileSystemError("marshal_index", indexFile, err)
-	}
+    data, err := json.MarshalIndent(c.index, "", "  ")
+    if err != nil {
+        return aerrors.ErrFileSystemError("marshal_index", indexFile, err)
+    }
 
-	if err := os.WriteFile(indexFile, data, 0644); err != nil {
-		return errors.ErrFileSystemError("write_index", indexFile, err)
-	}
+    if err := os.WriteFile(indexFile, data, 0644); err != nil {
+        return aerrors.ErrFileSystemError("write_index", indexFile, err)
+    }
 
 	return nil
 }
 
 // Close 關閉緩存（保存索引）
 func (c *Cache) Close() error {
-	return c.saveIndex()
+    if c.config.Enabled && c.stopCh != nil {
+        c.stopOnce.Do(func() { close(c.stopCh) })
+    }
+    return c.saveIndex()
 }

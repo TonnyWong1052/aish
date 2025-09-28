@@ -8,23 +8,23 @@ import (
 
 // CachePrewarmer 快取預熱器
 type CachePrewarmer struct {
-	cache      *IntelligentCache
-	config     *IntelligentCacheConfig
-	patterns   []PrewarmPattern
-	ticker     *time.Ticker
-	ctx        context.Context
-	cancel     context.CancelFunc
-	running    bool
-	mu         sync.RWMutex
+	cache    *IntelligentCache
+	config   *IntelligentCacheConfig
+	patterns []PrewarmPattern
+	ticker   *time.Ticker
+	ctx      context.Context
+	cancel   context.CancelFunc
+	running  bool
+	mu       sync.RWMutex
 }
 
 // PrewarmPattern 預熱模式
 type PrewarmPattern struct {
-	KeyPattern   string        `json:"key_pattern"`
-	ValueLoader  ValueLoader   `json:"-"`
-	Frequency    time.Duration `json:"frequency"`
-	Priority     int           `json:"priority"`
-	LastExecution time.Time    `json:"last_execution"`
+	KeyPattern    string        `json:"key_pattern"`
+	ValueLoader   ValueLoader   `json:"-"`
+	Frequency     time.Duration `json:"frequency"`
+	Priority      int           `json:"priority"`
+	LastExecution time.Time     `json:"last_execution"`
 }
 
 // ValueLoader 值加載器函數類型
@@ -32,12 +32,12 @@ type ValueLoader func(ctx context.Context, key string) (interface{}, error)
 
 // PrewarmerStats 預熱器統計
 type PrewarmerStats struct {
-	TotalPrewarmed   int64     `json:"total_prewarmed"`
-	SuccessfulLoads  int64     `json:"successful_loads"`
-	FailedLoads      int64     `json:"failed_loads"`
-	LastRun          time.Time `json:"last_run"`
-	AverageLoadTime  time.Duration `json:"average_load_time"`
-	IsRunning        bool      `json:"is_running"`
+	TotalPrewarmed  int64         `json:"total_prewarmed"`
+	SuccessfulLoads int64         `json:"successful_loads"`
+	FailedLoads     int64         `json:"failed_loads"`
+	LastRun         time.Time     `json:"last_run"`
+	AverageLoadTime time.Duration `json:"average_load_time"`
+	IsRunning       bool          `json:"is_running"`
 }
 
 // NewCachePrewarmer 創建新的快取預熱器
@@ -53,7 +53,7 @@ func NewCachePrewarmer(cache *IntelligentCache, config *IntelligentCacheConfig) 
 func (cp *CachePrewarmer) AddPattern(pattern PrewarmPattern) {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	
+
 	cp.patterns = append(cp.patterns, pattern)
 }
 
@@ -61,7 +61,7 @@ func (cp *CachePrewarmer) AddPattern(pattern PrewarmPattern) {
 func (cp *CachePrewarmer) RemovePattern(keyPattern string) {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	
+
 	for i, pattern := range cp.patterns {
 		if pattern.KeyPattern == keyPattern {
 			cp.patterns = append(cp.patterns[:i], cp.patterns[i+1:]...)
@@ -74,17 +74,17 @@ func (cp *CachePrewarmer) RemovePattern(keyPattern string) {
 func (cp *CachePrewarmer) Start(ctx context.Context) error {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	
+
 	if cp.running {
 		return nil
 	}
-	
+
 	cp.ctx, cp.cancel = context.WithCancel(ctx)
 	cp.ticker = time.NewTicker(cp.config.PrewarmingInterval)
 	cp.running = true
-	
+
 	go cp.run()
-	
+
 	return nil
 }
 
@@ -92,11 +92,11 @@ func (cp *CachePrewarmer) Start(ctx context.Context) error {
 func (cp *CachePrewarmer) Stop() {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	
+
 	if !cp.running {
 		return
 	}
-	
+
 	cp.running = false
 	if cp.cancel != nil {
 		cp.cancel()
@@ -113,7 +113,7 @@ func (cp *CachePrewarmer) run() {
 		cp.running = false
 		cp.mu.Unlock()
 	}()
-	
+
 	for {
 		select {
 		case <-cp.ctx.Done():
@@ -130,7 +130,7 @@ func (cp *CachePrewarmer) executePrewarming() {
 	patterns := make([]PrewarmPattern, len(cp.patterns))
 	copy(patterns, cp.patterns)
 	cp.mu.RUnlock()
-	
+
 	// 按優先級排序
 	for i := 0; i < len(patterns)-1; i++ {
 		for j := i + 1; j < len(patterns); j++ {
@@ -139,14 +139,14 @@ func (cp *CachePrewarmer) executePrewarming() {
 			}
 		}
 	}
-	
+
 	// 執行預熱
 	processedCount := 0
 	for _, pattern := range patterns {
 		if processedCount >= cp.config.PrewarmingBatchSize {
 			break
 		}
-		
+
 		if cp.shouldExecutePattern(pattern) {
 			cp.executePattern(pattern)
 			processedCount++
@@ -165,10 +165,10 @@ func (cp *CachePrewarmer) executePattern(pattern PrewarmPattern) {
 	if pattern.ValueLoader == nil {
 		return
 	}
-	
+
 	// 簡化實現：根據模式生成一些鍵
 	keys := cp.generateKeysFromPattern(pattern.KeyPattern)
-	
+
 	for _, key := range keys {
 		select {
 		case <-cp.ctx.Done():
@@ -177,7 +177,7 @@ func (cp *CachePrewarmer) executePattern(pattern PrewarmPattern) {
 			cp.loadAndCache(key, pattern.ValueLoader)
 		}
 	}
-	
+
 	// 更新執行時間
 	cp.mu.Lock()
 	for i := range cp.patterns {
@@ -203,21 +203,21 @@ func (cp *CachePrewarmer) generateKeysFromPattern(pattern string) []string {
 // loadAndCache 加載並快取值
 func (cp *CachePrewarmer) loadAndCache(key string, loader ValueLoader) {
 	startTime := time.Now()
-	
+
 	// 檢查是否已經存在
 	if _, exists := cp.cache.Get(key); exists {
 		return
 	}
-	
+
 	// 加載值
 	value, err := loader(cp.ctx, key)
 	if err != nil {
 		return
 	}
-	
+
 	// 快取值
 	cp.cache.Set(key, value, cp.config.DefaultTTL)
-	
+
 	// 可以在這裡記錄統計信息
 	_ = time.Since(startTime)
 }
@@ -226,7 +226,7 @@ func (cp *CachePrewarmer) loadAndCache(key string, loader ValueLoader) {
 func (cp *CachePrewarmer) GetStats() *PrewarmerStats {
 	cp.mu.RLock()
 	defer cp.mu.RUnlock()
-	
+
 	return &PrewarmerStats{
 		IsRunning: cp.running,
 		LastRun:   time.Now(), // 簡化實現
@@ -237,7 +237,7 @@ func (cp *CachePrewarmer) GetStats() *PrewarmerStats {
 func (cp *CachePrewarmer) GetPatterns() []PrewarmPattern {
 	cp.mu.RLock()
 	defer cp.mu.RUnlock()
-	
+
 	patterns := make([]PrewarmPattern, len(cp.patterns))
 	copy(patterns, cp.patterns)
 	return patterns
@@ -247,6 +247,6 @@ func (cp *CachePrewarmer) GetPatterns() []PrewarmPattern {
 func (cp *CachePrewarmer) IsRunning() bool {
 	cp.mu.RLock()
 	defer cp.mu.RUnlock()
-	
+
 	return cp.running
 }

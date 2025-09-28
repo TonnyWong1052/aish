@@ -84,7 +84,7 @@ func newDefaultConfig() *Config {
 			ProviderGeminiCLI: {APIEndpoint: GeminiCLIAPIEndpoint, Project: "YOUR_GEMINI_PROJECT_ID", Model: DefaultGeminiCLIModel},
 		},
 		UserPreferences: UserPreferences{
-			Language:           "en",
+			Language: "en",
 			EnabledLLMTriggers: []string{
 				"CommandNotFound",
 				"FileNotFoundOrDirectory",
@@ -106,7 +106,7 @@ func newDefaultConfig() *Config {
 				"AuthenticationError",
 				"InteractiveToolUsage",
 			},
-			AutoExecute:        false, // Default to false, require user to enable manually
+			AutoExecute: false, // Default to false, require user to enable manually
 			Context: ContextConfig{
 				MaxHistoryEntries:  DefaultMaxHistoryEntries,
 				IncludeDirectories: true,

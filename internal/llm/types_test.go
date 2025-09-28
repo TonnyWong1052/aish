@@ -2,10 +2,11 @@ package llm
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
-	"powerful-cli/internal/config"
-	"powerful-cli/internal/prompt"
+	"github.com/TonnyWong1052/aish/internal/config"
+	"github.com/TonnyWong1052/aish/internal/prompt"
 )
 
 func TestSuggestion(t *testing.T) {
@@ -153,12 +154,12 @@ func TestEnhancedCapturedContext(t *testing.T) {
 
 // MockProvider implements Provider interface for testing
 type MockProvider struct {
-	suggestion       *Suggestion
-	command          string
-	models           []string
-	suggestionErr    error
-	commandErr       error
-	connectionErr    error
+	suggestion    *Suggestion
+	command       string
+	models        []string
+	suggestionErr error
+	commandErr    error
+	connectionErr error
 }
 
 func (m *MockProvider) GetSuggestion(ctx context.Context, capturedCtx CapturedContext, language string) (*Suggestion, error) {
@@ -296,7 +297,7 @@ func TestProviderWithError(t *testing.T) {
 	expectedError := "factory error"
 
 	RegisterProvider(errorProviderName, func(cfg config.ProviderConfig, pm *prompt.Manager) (Provider, error) {
-		return nil, fmt.Errorf(expectedError)
+		return nil, fmt.Errorf("%s", expectedError)
 	})
 
 	provider, err := GetProvider(errorProviderName, config.ProviderConfig{}, nil)

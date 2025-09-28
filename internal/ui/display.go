@@ -1,15 +1,13 @@
 package ui
 
 import (
-    "bufio"
-    "fmt"
-    "os"
-    "strings"
+	"bufio"
+	"fmt"
+	"os"
+	"strings"
 
-    "github.com/pterm/pterm"
-   )
-
-
+	"github.com/pterm/pterm"
+)
 
 // HookSelectionDisplay implements hook selection with "(Press <space> to select, <a> to toggle all, <i> to invert selection, and <enter> to proceed)" rule.
 func HookSelectionDisplay(options []string, title string, defaultOptions []string) ([]string, error) {

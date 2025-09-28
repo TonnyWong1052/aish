@@ -88,7 +88,16 @@ var captureCmd = &cobra.Command{
 		providerName := effectiveProviderName(cfg)
 		providerCfg, ok := cfg.Providers[providerName]
 		if !ok || isProviderConfigIncomplete(providerName, providerCfg) {
-			pterm.Error.Printfln("aish is active, but no LLM provider is configured. Run 'aish config' to set one up.")
+			errorHandler := ui.NewErrorHandler(flagDebug)
+		userErr := errorHandler.CreateConfigurationError(
+			"AISH is active, but no LLM provider is configured.",
+			[]string{
+				"Run 'aish init' to configure an LLM provider",
+				"Check your current configuration with 'aish config show'",
+				"Verify your API keys are correctly set",
+			},
+		)
+		errorHandler.HandleError(userErr)
 			return
 		}
 
@@ -102,7 +111,7 @@ var captureCmd = &cobra.Command{
 		pterm.DefaultHeader.WithBackgroundStyle(pterm.NewStyle(pterm.BgBlue)).
 			WithTextStyle(pterm.NewStyle(pterm.FgWhite)).
 			Println("AI Analysis")
-		
+
 		presenter := ui.NewPresenter()
 		presenter.ShowLoading("正在分析錯誤並生成建議...")
 
@@ -115,7 +124,18 @@ var captureCmd = &cobra.Command{
 
 		if err != nil {
 			presenter.StopLoading(false)
-			pterm.Error.Printfln("Failed to get suggestion: %v", err)
+			errorHandler := ui.NewErrorHandler(flagDebug)
+			userErr := errorHandler.CreateProviderError(
+				"Failed to get AI suggestion for the error.",
+				[]string{
+					"Check your internet connection",
+					"Verify your LLM provider configuration",
+					"Try switching to a different provider with 'aish config set default_provider gemini-cli'",
+					"Check if you've exceeded API rate limits",
+				},
+			)
+			userErr.Cause = err
+			errorHandler.HandleError(userErr)
 			return
 		}
 		presenter.StopLoading(true)
@@ -154,7 +174,17 @@ var captureCmd = &cobra.Command{
 func runPromptLogic(promptStr string) {
 	cfg, err := config.Load()
 	if err != nil {
-		pterm.Error.Printfln("Failed to load config: %v", err)
+		errorHandler := ui.NewErrorHandler(flagDebug)
+		userErr := errorHandler.CreateConfigurationError(
+			"Unable to load AISH configuration.",
+			[]string{
+				"Run 'aish init' to create initial configuration",
+				"Check if configuration file is corrupted",
+				"Verify ~/.config/aish/ directory permissions",
+			},
+		)
+		userErr.Cause = err
+		errorHandler.HandleError(userErr)
 		os.Exit(1)
 	}
 
@@ -167,7 +197,16 @@ func runPromptLogic(promptStr string) {
 	}
 
 	if provider == nil {
-		pterm.Error.Println("No LLM provider configured or configuration incomplete. Please run 'aish config' first.")
+		errorHandler := ui.NewErrorHandler(flagDebug)
+		userErr := errorHandler.CreateConfigurationError(
+			"No LLM provider configured or configuration incomplete.",
+			[]string{
+				"Run 'aish init' to configure an LLM provider",
+				"Check your current configuration with 'aish config show'",
+				"Verify your API keys are correctly set",
+			},
+		)
+		errorHandler.HandleError(userErr)
 		os.Exit(1)
 	}
 
@@ -320,10 +359,10 @@ func effectiveLanguage(cfg *config.Config) string {
 }
 
 func versionString() string {
-    if strings.TrimSpace(_version) == "" {
-        return "v0.0.1"
-    }
-    return _version
+	if strings.TrimSpace(_version) == "" {
+		return "v0.0.1"
+	}
+	return _version
 }
 
 // readTail reads the tail of a file up to maxBytes (returns empty string if path is empty or read fails)

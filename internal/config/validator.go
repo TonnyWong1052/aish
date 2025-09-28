@@ -7,21 +7,44 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/TonnyWong1052/aish/internal/errors"
+	aerrors "github.com/TonnyWong1052/aish/internal/errors"
 )
 
-// ValidationError represents a configuration validation error
+// ValidationError represents a configuration validation error with enhanced user guidance
 type ValidationError struct {
-	Field   string `json:"field"`
-	Value   string `json:"value,omitempty"`
-	Message string `json:"message"`
+	Field       string   `json:"field"`
+	Value       string   `json:"value,omitempty"`
+	Message     string   `json:"message"`
+	Suggestions []string `json:"suggestions,omitempty"` // Actionable suggestions for fixing the error
+	Severity    string   `json:"severity"`              // "error", "warning", "info"
 }
 
 func (e ValidationError) Error() string {
-	if e.Value != "" {
-		return fmt.Sprintf("Config field '%s' value '%s' is invalid: %s", e.Field, e.Value, e.Message)
+	var severity string
+	switch e.Severity {
+	case "warning":
+		severity = "⚠️  WARNING"
+	case "info":
+		severity = "ℹ️  INFO"
+	default:
+		severity = "❌ ERROR"
 	}
-	return fmt.Sprintf("Config field '%s' is invalid: %s", e.Field, e.Message)
+
+	var result string
+	if e.Value != "" {
+		result = fmt.Sprintf("%s: Config field '%s' value '%s' is invalid: %s", severity, e.Field, e.Value, e.Message)
+	} else {
+		result = fmt.Sprintf("%s: Config field '%s' is invalid: %s", severity, e.Field, e.Message)
+	}
+
+	if len(e.Suggestions) > 0 {
+		result += "\n  Suggestions:"
+		for _, suggestion := range e.Suggestions {
+			result += fmt.Sprintf("\n  - %s", suggestion)
+		}
+	}
+
+	return result
 }
 
 // ValidationErrors represents multiple validation errors
@@ -54,12 +77,29 @@ func NewValidator() *Validator {
 	}
 }
 
-// AddError adds a validation error
+// AddError adds a validation error with default severity
 func (v *Validator) AddError(field, value, message string) {
+	v.AddErrorWithSuggestions(field, value, message, nil, "error")
+}
+
+// AddWarning adds a validation warning
+func (v *Validator) AddWarning(field, value, message string, suggestions []string) {
+	v.AddErrorWithSuggestions(field, value, message, suggestions, "warning")
+}
+
+// AddInfo adds informational validation message
+func (v *Validator) AddInfo(field, value, message string, suggestions []string) {
+	v.AddErrorWithSuggestions(field, value, message, suggestions, "info")
+}
+
+// AddErrorWithSuggestions adds a validation error with suggestions and severity
+func (v *Validator) AddErrorWithSuggestions(field, value, message string, suggestions []string, severity string) {
 	v.errors = append(v.errors, ValidationError{
-		Field:   field,
-		Value:   value,
-		Message: message,
+		Field:       field,
+		Value:       value,
+		Message:     message,
+		Suggestions: suggestions,
+		Severity:    severity,
 	})
 }
 
@@ -86,9 +126,9 @@ func (c *Config) Validate() error {
 	// Validate user preferences
 	validator.validateUserPreferences(c)
 
-	if validator.HasErrors() {
-		return errors.WrapError(validator.GetErrors(), errors.ErrConfigValidation, "configuration validation failed")
-	}
+    if validator.HasErrors() {
+        return aerrors.WrapError(validator.GetErrors(), aerrors.ErrConfigValidation, "configuration validation failed")
+    }
 
 	return nil
 }
@@ -97,17 +137,54 @@ func (c *Config) Validate() error {
 func (v *Validator) validateBasicConfig(c *Config) {
 	// Validate default provider
 	if c.DefaultProvider == "" {
-		v.AddError("default_provider", c.DefaultProvider, "Default provider cannot be empty")
+		v.AddErrorWithSuggestions("default_provider", c.DefaultProvider,
+			"默認提供商不能為空",
+			[]string{
+				"運行 'aish init' 來設置默認提供商",
+				"使用 'aish config set default_provider <provider>' 設置默認提供商",
+				"可選提供商: openai, gemini, gemini-cli",
+			}, "error")
 	} else {
 		// Check if default provider exists in provider list
 		if _, exists := c.Providers[c.DefaultProvider]; !exists {
-			v.AddError("default_provider", c.DefaultProvider, "Default provider does not exist in provider configuration")
+			availableProviders := make([]string, 0, len(c.Providers))
+			for name := range c.Providers {
+				availableProviders = append(availableProviders, name)
+			}
+			suggestions := []string{
+				fmt.Sprintf("設置為可用的提供商之一: %v", availableProviders),
+				"運行 'aish config show' 查看當前配置",
+				"運行 'aish init' 重新配置",
+			}
+			if len(availableProviders) > 0 {
+				suggestions = append(suggestions, fmt.Sprintf("使用 'aish config set default_provider %s' 設置為第一個可用提供商", availableProviders[0]))
+			}
+			v.AddErrorWithSuggestions("default_provider", c.DefaultProvider,
+				"默認提供商在提供商配置中不存在",
+				suggestions, "error")
 		}
 	}
 
 	// Validate provider configuration cannot be empty
 	if len(c.Providers) == 0 {
-		v.AddError("providers", "", "Must configure at least one provider")
+		v.AddErrorWithSuggestions("providers", "",
+			"必須配置至少一個LLM提供商",
+			[]string{
+				"運行 'aish init' 來設置LLM提供商",
+				"手動配置OpenAI: 'aish config set providers.openai.api_key YOUR_KEY'",
+				"使用Gemini CLI (無需API密鑰): 'aish config set default_provider gemini-cli'",
+				"查看支持的提供商: openai, gemini, gemini-cli",
+			}, "error")
+	}
+
+	// Add helpful info for first-time setup
+	if !c.Enabled {
+		v.AddInfo("enabled", "false",
+			"AISH當前已禁用",
+			[]string{
+				"使用 'aish config set enabled true' 啟用",
+				"運行 'aish init' 進行完整設置",
+			})
 	}
 }
 
@@ -153,57 +230,136 @@ func (v *Validator) validateProviders(c *Config) {
 
 // validateOpenAIProvider 驗證 OpenAI 提供商配置
 func (v *Validator) validateOpenAIProvider(fieldPrefix string, provider ProviderConfig) {
-	// 對預設模板值採取寬鬆策略：不作為致命錯誤，允許離線模式先行使用
+	// API Key validation with helpful guidance
 	if provider.APIKey == "" || provider.APIKey == "YOUR_OPENAI_API_KEY" {
-		// 跳過致命錯誤，改由命令路徑在實際使用時檢查
-		// v.AddError(fieldPrefix+".api_key", provider.APIKey, "OpenAI API 密鑰未設置")
+		v.AddWarning(fieldPrefix+".api_key", provider.APIKey,
+			"OpenAI API密鑰未設置或使用預設值",
+			[]string{
+				"從 https://platform.openai.com/api-keys 獲取API密鑰",
+				"使用命令設置: 'aish config set providers.openai.api_key sk-your-key'",
+				"確保密鑰以 'sk-' 開頭",
+				"檢查API密鑰是否有足夠的額度",
+			})
+	} else if !strings.HasPrefix(provider.APIKey, "sk-") && !strings.HasPrefix(provider.APIKey, "pk-") {
+		v.AddWarning(fieldPrefix+".api_key", provider.APIKey,
+			"OpenAI API密鑰格式可能不正確",
+			[]string{
+				"OpenAI API密鑰通常以 'sk-' 開頭",
+				"確認密鑰是從 https://platform.openai.com/api-keys 複製的",
+				"檢查是否有額外的空格或字符",
+			})
 	}
 
 	if provider.APIEndpoint == "" {
-		v.AddError(fieldPrefix+".api_endpoint", provider.APIEndpoint, "OpenAI API 端點不能為空")
+		v.AddErrorWithSuggestions(fieldPrefix+".api_endpoint", provider.APIEndpoint,
+			"OpenAI API端點不能為空",
+			[]string{
+				"使用官方端點: 'aish config set providers.openai.api_endpoint https://api.openai.com/v1'",
+				"或使用兼容的API端點",
+				"確保端點支持OpenAI API格式",
+			}, "error")
 	}
 
-	// 驗證常見的 OpenAI 模型名稱
-	validModels := []string{
-		"gpt-3.5-turbo", "gpt-3.5-turbo-16k", "gpt-4", "gpt-4-32k", "gpt-4-turbo", "gpt-4o",
+	// Model validation with suggestions
+	recommendedModels := []string{
+		"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo",
 	}
-	if provider.Model != "" && !v.isValidModel(provider.Model, validModels) {
-		// 這只是警告，不是錯誤，因為可能有新的模型
-		// v.AddError(fieldPrefix+".model", provider.Model, "可能不支持的 OpenAI 模型")
+	if provider.Model == "" {
+		v.AddWarning(fieldPrefix+".model", provider.Model,
+			"OpenAI模型未指定",
+			[]string{
+				"推薦模型: " + strings.Join(recommendedModels, ", "),
+				"設置模型: 'aish config set providers.openai.model gpt-4o'",
+				"查看可用模型: https://platform.openai.com/docs/models",
+			})
+	} else if !v.isValidModel(provider.Model, recommendedModels) {
+		v.AddInfo(fieldPrefix+".model", provider.Model,
+			"使用非標準OpenAI模型",
+			[]string{
+				"確認模型存在且可用",
+				"推薦模型: " + strings.Join(recommendedModels, ", "),
+				"檢查模型權限和額度限制",
+			})
 	}
 }
 
 // validateGeminiProvider 驗證 Gemini 提供商配置
 func (v *Validator) validateGeminiProvider(fieldPrefix string, provider ProviderConfig) {
 	if provider.APIKey == "" || provider.APIKey == "YOUR_GEMINI_API_KEY" {
-		// 跳過致命錯誤，允許未配置情況下啟動（將退回離線/本地邏輯）
-		// v.AddError(fieldPrefix+".api_key", provider.APIKey, "Gemini API 密鑰未設置")
+		v.AddWarning(fieldPrefix+".api_key", provider.APIKey,
+			"Gemini API密鑰未設置或使用預設值",
+			[]string{
+				"從 https://aistudio.google.com/app/apikey 獲取API密鑰",
+				"使用命令設置: 'aish config set providers.gemini.api_key YOUR_KEY'",
+				"或使用免費的Gemini CLI: 'aish config set default_provider gemini-cli'",
+				"Gemini API提供免費額度供測試使用",
+			})
 	}
 
 	if provider.APIEndpoint == "" {
-		v.AddError(fieldPrefix+".api_endpoint", provider.APIEndpoint, "Gemini API 端點不能為空")
+		v.AddErrorWithSuggestions(fieldPrefix+".api_endpoint", provider.APIEndpoint,
+			"Gemini API端點不能為空",
+			[]string{
+				"使用官方端點: 'aish config set providers.gemini.api_endpoint https://generativelanguage.googleapis.com/v1'",
+				"確保端點支持Gemini API格式",
+			}, "error")
 	}
 
 	// 驗證常見的 Gemini 模型名稱
-	validModels := []string{
-		"gemini-pro", "gemini-pro-vision",
+	recommendedModels := []string{
+		"gemini-1.5-pro", "gemini-1.5-flash", "gemini-pro", "gemini-pro-vision",
 	}
-	if provider.Model != "" && !v.isValidModel(provider.Model, validModels) {
-		// 這只是警告，不是錯誤
-		// v.AddError(fieldPrefix+".model", provider.Model, "可能不支持的 Gemini 模型")
+	if provider.Model == "" {
+		v.AddWarning(fieldPrefix+".model", provider.Model,
+			"Gemini模型未指定",
+			[]string{
+				"推薦模型: " + strings.Join(recommendedModels, ", "),
+				"設置模型: 'aish config set providers.gemini.model gemini-1.5-pro'",
+				"查看可用模型: https://ai.google.dev/models/gemini",
+			})
+	} else if !v.isValidModel(provider.Model, recommendedModels) {
+		v.AddInfo(fieldPrefix+".model", provider.Model,
+			"使用非標準Gemini模型",
+			[]string{
+				"確認模型存在且可用",
+				"推薦模型: " + strings.Join(recommendedModels, ", "),
+				"檢查模型是否在您的區域可用",
+			})
 	}
 }
 
 // validateGeminiCLIProvider 驗證 Gemini CLI 提供商配置
 func (v *Validator) validateGeminiCLIProvider(fieldPrefix string, provider ProviderConfig) {
 	if provider.Project == "" || provider.Project == "YOUR_GEMINI_PROJECT_ID" {
-		// 跳過致命錯誤，允許未配置情況下啟動
-		// v.AddError(fieldPrefix+".project", provider.Project, "Google Cloud 項目 ID 未設置")
+		v.AddWarning(fieldPrefix+".project", provider.Project,
+			"Google Cloud項目ID未設置或使用預設值",
+			[]string{
+				"安裝Gemini CLI: https://github.com/google/generative-ai-cli",
+				"登錄Google Cloud: 'gemini-cli auth login'",
+				"設置項目ID: 'aish config set providers.gemini-cli.project YOUR_PROJECT_ID'",
+				"查看當前項目: 'gcloud config get-value project'",
+				"Gemini CLI是推薦的免費選項",
+			})
 	}
 
 	if provider.APIEndpoint == "" {
-		v.AddError(fieldPrefix+".api_endpoint", provider.APIEndpoint, "Gemini CLI API 端點不能為空")
+		v.AddErrorWithSuggestions(fieldPrefix+".api_endpoint", provider.APIEndpoint,
+			"Gemini CLI API端點不能為空",
+			[]string{
+				"使用默認端點: 'aish config set providers.gemini-cli.api_endpoint https://cloudcode-pa.googleapis.com/v1internal'",
+				"確保已安裝和配置Gemini CLI",
+			}, "error")
 	}
+
+	// Add helpful info for Gemini CLI setup
+	v.AddInfo(fieldPrefix, "",
+		"Gemini CLI是免費且易於設置的選項",
+		[]string{
+			"無需API密鑰，使用Google帳戶認證",
+			"運行 'gemini-cli auth login' 進行身份驗證",
+			"更高的免費使用限制",
+			"適合個人和開發使用",
+		})
 }
 
 // validateUserPreferences 驗證用戶偏好設置
@@ -211,9 +367,23 @@ func (v *Validator) validateUserPreferences(c *Config) {
 	prefs := c.UserPreferences
 
 	// 驗證語言設置
-	validLanguages := []string{"english", "chinese", "japanese"}
+	validLanguages := []string{"en", "english", "zh", "zh-CN", "zh-TW", "chinese", "ja", "japanese"}
 	if prefs.Language != "" && !v.contains(validLanguages, prefs.Language) {
-		v.AddError("user_preferences.language", prefs.Language, "不支持的語言設置")
+		v.AddWarning("user_preferences.language", prefs.Language,
+			"Unsupported language setting",
+			[]string{
+				"Supported languages: en (English), zh/zh-CN/zh-TW (Chinese), ja (Japanese)",
+				"Set language: 'aish config set language en' for English",
+				"Use ISO codes (en, zh, ja) or full names (english, chinese, japanese)",
+				"Default language is English (en)",
+			})
+	} else if prefs.Language == "" {
+		v.AddInfo("user_preferences.language", "",
+			"Language not specified, using default (English)",
+			[]string{
+				"Set language explicitly: 'aish config set language en'",
+				"Available languages: en, zh, ja",
+			})
 	}
 
 	// 驗證上下文配置
@@ -413,8 +583,8 @@ func (c *Config) ValidateAndFix() ([]string, error) {
 		fixes = append(fixes, "修復日誌備份數量為 5")
 	}
 
-	// 修復語言：若為空或不在允許清單，回退為 english
-	validLanguages := []string{"english", "chinese", "japanese"}
+	// 修復語言：若為空或不在允許清單，回退為 en (English)
+	validLanguages := []string{"en", "english", "zh", "zh-cn", "zh-tw", "chinese", "ja", "japanese"}
 	lang := strings.ToLower(strings.TrimSpace(c.UserPreferences.Language))
 	isValid := false
 	for _, v := range validLanguages {
@@ -424,14 +594,145 @@ func (c *Config) ValidateAndFix() ([]string, error) {
 		}
 	}
 	if !isValid {
-		c.UserPreferences.Language = "english"
-		fixes = append(fixes, "修復語言為 english")
+		c.UserPreferences.Language = "en"
+		fixes = append(fixes, "Fixed language to en (English)")
 	}
 
-	// 在修復後進行驗證
-	if err := c.Validate(); err != nil {
-		return fixes, err
+	// 在修復後進行基本驗證（不包括警告，只檢查致命錯誤）
+	validator := NewValidator()
+	validator.validateBasicConfig(c)
+	validator.validateProviders(c)
+
+	// 只檢查嚴重錯誤
+	for _, validationErr := range validator.GetErrors() {
+		if validationErr.Severity == "error" {
+			return fixes, aerrors.WrapError(validator.GetErrors(), aerrors.ErrConfigValidation, "configuration validation failed after fixes")
+		}
 	}
 
 	return fixes, nil
+}
+
+// ValidateWithRecommendations provides comprehensive validation with actionable recommendations
+func (c *Config) ValidateWithRecommendations() (ValidationErrors, []string, error) {
+	validator := NewValidator()
+
+	// Validate basic configuration
+	validator.validateBasicConfig(c)
+
+	// Validate provider configuration
+	validator.validateProviders(c)
+
+	// Validate user preferences
+	validator.validateUserPreferences(c)
+
+	// Add configuration health checks
+	validator.addConfigurationHealthChecks(c)
+
+	errors := validator.GetErrors()
+	recommendations := validator.generateRecommendations(c)
+
+	// Only return fatal errors if any exist
+	var fatalErrors ValidationErrors
+	for _, err := range errors {
+		if err.Severity == "error" {
+			fatalErrors = append(fatalErrors, err)
+		}
+	}
+
+	if len(fatalErrors) > 0 {
+		return errors, recommendations, fatalErrors
+	}
+
+	return errors, recommendations, nil
+}
+
+// addConfigurationHealthChecks adds proactive health checks and optimization suggestions
+func (v *Validator) addConfigurationHealthChecks(c *Config) {
+	// Check if using recommended setup
+	if c.DefaultProvider == "gemini-cli" {
+		v.AddInfo("setup", "gemini-cli",
+			"Using recommended Gemini CLI provider",
+			[]string{
+				"Gemini CLI offers free usage and easy setup",
+				"Ensure authentication with 'gemini-cli auth login'",
+				"Check status with 'gemini-cli auth list'",
+			})
+	}
+
+	// Check if multiple providers are configured
+	configuredProviders := 0
+	for _, provider := range c.Providers {
+		if (provider.APIKey != "" && provider.APIKey != "YOUR_OPENAI_API_KEY" && provider.APIKey != "YOUR_GEMINI_API_KEY") ||
+			(provider.Project != "" && provider.Project != "YOUR_GEMINI_PROJECT_ID") {
+			configuredProviders++
+		}
+	}
+
+	if configuredProviders == 0 {
+		v.AddWarning("providers", "",
+			"No providers fully configured",
+			[]string{
+				"Run 'aish init' to set up a provider",
+				"Recommended: Use Gemini CLI for free usage",
+				"Or configure OpenAI/Gemini with API keys",
+			})
+	} else if configuredProviders > 1 {
+		v.AddInfo("providers", "",
+			"Multiple providers configured - excellent for fallback",
+			[]string{
+				"Switch providers with 'aish config set default_provider <name>'",
+				"Use different providers for different use cases",
+			})
+	}
+
+	// Performance optimization suggestions
+	if !c.UserPreferences.Cache.Enabled {
+		v.AddInfo("cache", "disabled",
+			"Caching is disabled - may affect performance",
+			[]string{
+				"Enable caching: 'aish config set user_preferences.cache.enabled true'",
+				"Caching improves response times for similar queries",
+				"Reduces API usage and costs",
+			})
+	}
+}
+
+// generateRecommendations provides general setup and optimization recommendations
+func (v *Validator) generateRecommendations(c *Config) []string {
+	var recommendations []string
+
+	// First-time setup recommendations
+	if c.DefaultProvider == "" || len(c.Providers) == 0 {
+		recommendations = append(recommendations,
+			"🚀 First-time setup: Run 'aish init' for guided configuration",
+			"💡 For free usage: Choose Gemini CLI during setup",
+			"📚 Read the setup guide: https://github.com/TonnyWong1052/aish/blob/main/README.md",
+		)
+	}
+
+	// Performance recommendations
+	if c.UserPreferences.Context.MaxHistoryEntries > 50 {
+		recommendations = append(recommendations,
+			"⚡ Performance: Consider reducing max_history_entries to 20-30 for faster responses",
+		)
+	}
+
+	// Security recommendations
+	for providerName, provider := range c.Providers {
+		if provider.APIKey != "" && !strings.HasPrefix(provider.APIKey, "sk-") && providerName == "openai" {
+			recommendations = append(recommendations,
+				"🔒 Security: Verify your OpenAI API key format (should start with 'sk-')",
+			)
+		}
+	}
+
+	// Usage optimization
+	if len(c.UserPreferences.EnabledLLMTriggers) > 10 {
+		recommendations = append(recommendations,
+			"🎯 Optimization: Consider reducing enabled triggers for better performance",
+		)
+	}
+
+	return recommendations
 }

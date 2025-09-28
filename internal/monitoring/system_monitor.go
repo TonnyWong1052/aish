@@ -9,78 +9,78 @@ import (
 
 // SystemMonitor 系統監控器
 type SystemMonitor struct {
-	metrics   *SystemMetrics
+	metrics    *SystemMetrics
 	collectors []MetricsCollector
-	config    *MonitorConfig
-	running   bool
-	ticker    *time.Ticker
-	ctx       context.Context
-	cancel    context.CancelFunc
-	mu        sync.RWMutex
+	config     *MonitorConfig
+	running    bool
+	ticker     *time.Ticker
+	ctx        context.Context
+	cancel     context.CancelFunc
+	mu         sync.RWMutex
 }
 
 // MonitorConfig 監控配置
 type MonitorConfig struct {
-	CollectInterval   time.Duration `json:"collect_interval"`
-	MetricsRetention  time.Duration `json:"metrics_retention"`
-	EnableCPUProfile  bool          `json:"enable_cpu_profile"`
-	EnableMemProfile  bool          `json:"enable_mem_profile"`
-	EnableGoroutines  bool          `json:"enable_goroutines"`
-	AlertThresholds   AlertThresholds `json:"alert_thresholds"`
+	CollectInterval  time.Duration   `json:"collect_interval"`
+	MetricsRetention time.Duration   `json:"metrics_retention"`
+	EnableCPUProfile bool            `json:"enable_cpu_profile"`
+	EnableMemProfile bool            `json:"enable_mem_profile"`
+	EnableGoroutines bool            `json:"enable_goroutines"`
+	AlertThresholds  AlertThresholds `json:"alert_thresholds"`
 }
 
 // AlertThresholds 警報閾值
 type AlertThresholds struct {
-	CPUUsage      float64 `json:"cpu_usage"`
-	MemoryUsage   float64 `json:"memory_usage"`
-	GoroutineCount int    `json:"goroutine_count"`
-	HeapSize      int64  `json:"heap_size"`
+	CPUUsage       float64 `json:"cpu_usage"`
+	MemoryUsage    float64 `json:"memory_usage"`
+	GoroutineCount int     `json:"goroutine_count"`
+	HeapSize       int64   `json:"heap_size"`
 }
 
 // SystemMetrics 系統指標
 type SystemMetrics struct {
-	Timestamp       time.Time        `json:"timestamp"`
-	Runtime         RuntimeMetrics   `json:"runtime"`
-	Memory          MemoryMetrics    `json:"memory"`
-	Goroutines      GoroutineMetrics `json:"goroutines"`
-	GC              GCMetrics        `json:"gc"`
-	Performance     PerformanceMetrics `json:"performance"`
-	CustomMetrics   map[string]interface{} `json:"custom_metrics"`
-	Alerts          []Alert          `json:"alerts"`
+	Timestamp     time.Time              `json:"timestamp"`
+	Runtime       RuntimeMetrics         `json:"runtime"`
+	Memory        MemoryMetrics          `json:"memory"`
+	Goroutines    GoroutineMetrics       `json:"goroutines"`
+	GC            GCMetrics              `json:"gc"`
+	Performance   PerformanceMetrics     `json:"performance"`
+	CustomMetrics map[string]interface{} `json:"custom_metrics"`
+	Alerts        []Alert                `json:"alerts"`
 }
 
 // RuntimeMetrics 運行時指標
 type RuntimeMetrics struct {
-	GoVersion     string        `json:"go_version"`
-	GOOS          string        `json:"goos"`
-	GOARCH        string        `json:"goarch"`
-	NumCPU        int           `json:"num_cpu"`
-	NumGoroutine  int           `json:"num_goroutine"`
-	Uptime        time.Duration `json:"uptime"`
+	GoVersion    string        `json:"go_version"`
+	GOOS         string        `json:"goos"`
+	GOARCH       string        `json:"goarch"`
+	NumCPU       int           `json:"num_cpu"`
+	NumGoroutine int           `json:"num_goroutine"`
+	Uptime       time.Duration `json:"uptime"`
 }
 
 // MemoryMetrics 內存指標
 type MemoryMetrics struct {
-	Alloc        uint64  `json:"alloc"`          // 已分配的堆內存
-	TotalAlloc   uint64  `json:"total_alloc"`    // 累計分配的內存
-	Sys          uint64  `json:"sys"`            // 系統內存
-	HeapAlloc    uint64  `json:"heap_alloc"`     // 堆分配
-	HeapSys      uint64  `json:"heap_sys"`       // 堆系統內存
-	HeapIdle     uint64  `json:"heap_idle"`      // 空閒堆內存
-	HeapInuse    uint64  `json:"heap_inuse"`     // 使用中的堆內存
-	HeapReleased uint64  `json:"heap_released"`  // 釋放給系統的內存
-	StackInuse   uint64  `json:"stack_inuse"`    // 棧使用的內存
-	StackSys     uint64  `json:"stack_sys"`      // 棧系統內存
-	UsagePercent float64 `json:"usage_percent"`  // 內存使用百分比
+	Alloc        uint64  `json:"alloc"`         // 已分配的堆內存
+	TotalAlloc   uint64  `json:"total_alloc"`   // 累計分配的內存
+	Sys          uint64  `json:"sys"`           // 系統內存
+	HeapAlloc    uint64  `json:"heap_alloc"`    // 堆分配
+	HeapSys      uint64  `json:"heap_sys"`      // 堆系統內存
+	HeapIdle     uint64  `json:"heap_idle"`     // 空閒堆內存
+	HeapInuse    uint64  `json:"heap_inuse"`    // 使用中的堆內存
+	HeapReleased uint64  `json:"heap_released"` // 釋放給系統的內存
+	StackInuse   uint64  `json:"stack_inuse"`   // 棧使用的內存
+	StackSys     uint64  `json:"stack_sys"`     // 棧系統內存
+	UsagePercent float64 `json:"usage_percent"` // 內存使用百分比
 }
 
 // GoroutineMetrics Goroutine 指標
 type GoroutineMetrics struct {
-	Total    int                        `json:"total"`
-	Running  int                        `json:"running"`
-	Waiting  int                        `json:"waiting"`
-	Blocked  int                        `json:"blocked"`
-	Details  map[string]GoroutineDetail `json:"details"`
+	Total   int                        `json:"total"`
+	Running int                        `json:"running"`
+	Waiting int                        `json:"waiting"`
+	Blocked int                        `json:"blocked"`
+	Details map[string]GoroutineDetail `json:"details"`
 }
 
 // GoroutineDetail Goroutine 詳細信息
@@ -92,34 +92,34 @@ type GoroutineDetail struct {
 
 // GCMetrics 垃圾回收指標
 type GCMetrics struct {
-	NumGC        uint32        `json:"num_gc"`
-	PauseTotal   time.Duration `json:"pause_total"`
-	PauseNs      []uint64      `json:"pause_ns"`
-	LastGC       time.Time     `json:"last_gc"`
-	NextGC       uint64        `json:"next_gc"`
-	GCCPUFraction float64      `json:"gc_cpu_fraction"`
+	NumGC         uint32        `json:"num_gc"`
+	PauseTotal    time.Duration `json:"pause_total"`
+	PauseNs       []uint64      `json:"pause_ns"`
+	LastGC        time.Time     `json:"last_gc"`
+	NextGC        uint64        `json:"next_gc"`
+	GCCPUFraction float64       `json:"gc_cpu_fraction"`
 }
 
 // PerformanceMetrics 性能指標
 type PerformanceMetrics struct {
-	RequestsPerSecond float64           `json:"requests_per_second"`
-	AverageLatency    time.Duration     `json:"average_latency"`
-	P95Latency        time.Duration     `json:"p95_latency"`
-	P99Latency        time.Duration     `json:"p99_latency"`
-	ErrorRate         float64           `json:"error_rate"`
-	ThroughputMBps    float64           `json:"throughput_mbps"`
-	CustomCounters    map[string]int64  `json:"custom_counters"`
+	RequestsPerSecond float64            `json:"requests_per_second"`
+	AverageLatency    time.Duration      `json:"average_latency"`
+	P95Latency        time.Duration      `json:"p95_latency"`
+	P99Latency        time.Duration      `json:"p99_latency"`
+	ErrorRate         float64            `json:"error_rate"`
+	ThroughputMBps    float64            `json:"throughput_mbps"`
+	CustomCounters    map[string]int64   `json:"custom_counters"`
 	CustomGauges      map[string]float64 `json:"custom_gauges"`
 }
 
 // Alert 警報
 type Alert struct {
-	Type        string    `json:"type"`
-	Level       string    `json:"level"`
-	Message     string    `json:"message"`
-	Value       float64   `json:"value"`
-	Threshold   float64   `json:"threshold"`
-	Timestamp   time.Time `json:"timestamp"`
+	Type      string    `json:"type"`
+	Level     string    `json:"level"`
+	Message   string    `json:"message"`
+	Value     float64   `json:"value"`
+	Threshold float64   `json:"threshold"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // MetricsCollector 指標收集器接口
@@ -150,11 +150,11 @@ func NewSystemMonitor(config *MonitorConfig) *SystemMonitor {
 	if config == nil {
 		config = DefaultMonitorConfig()
 	}
-	
+
 	return &SystemMonitor{
 		config:     config,
 		collectors: make([]MetricsCollector, 0),
-		metrics:    &SystemMetrics{
+		metrics: &SystemMetrics{
 			CustomMetrics: make(map[string]interface{}),
 		},
 	}
@@ -164,17 +164,17 @@ func NewSystemMonitor(config *MonitorConfig) *SystemMonitor {
 func (sm *SystemMonitor) Start(ctx context.Context) error {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	
+
 	if sm.running {
 		return nil
 	}
-	
+
 	sm.ctx, sm.cancel = context.WithCancel(ctx)
 	sm.ticker = time.NewTicker(sm.config.CollectInterval)
 	sm.running = true
-	
+
 	go sm.collectLoop()
-	
+
 	return nil
 }
 
@@ -182,11 +182,11 @@ func (sm *SystemMonitor) Start(ctx context.Context) error {
 func (sm *SystemMonitor) Stop() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	
+
 	if !sm.running {
 		return
 	}
-	
+
 	sm.running = false
 	if sm.cancel != nil {
 		sm.cancel()
@@ -203,7 +203,7 @@ func (sm *SystemMonitor) collectLoop() {
 		sm.running = false
 		sm.mu.Unlock()
 	}()
-	
+
 	for {
 		select {
 		case <-sm.ctx.Done():
@@ -218,23 +218,23 @@ func (sm *SystemMonitor) collectLoop() {
 func (sm *SystemMonitor) collectMetrics() {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	
+
 	now := time.Now()
-	
+
 	// 收集運行時指標
 	sm.metrics.Runtime = sm.collectRuntimeMetrics()
-	
+
 	// 收集內存指標
 	sm.metrics.Memory = sm.collectMemoryMetrics()
-	
+
 	// 收集 Goroutine 指標
 	if sm.config.EnableGoroutines {
 		sm.metrics.Goroutines = sm.collectGoroutineMetrics()
 	}
-	
+
 	// 收集 GC 指標
 	sm.metrics.GC = sm.collectGCMetrics()
-	
+
 	// 收集自定義指標
 	for _, collector := range sm.collectors {
 		if metrics, err := collector.Collect(); err == nil {
@@ -243,9 +243,9 @@ func (sm *SystemMonitor) collectMetrics() {
 			}
 		}
 	}
-	
+
 	sm.metrics.Timestamp = now
-	
+
 	// 檢查警報
 	sm.checkAlerts()
 }
@@ -266,13 +266,13 @@ func (sm *SystemMonitor) collectRuntimeMetrics() RuntimeMetrics {
 func (sm *SystemMonitor) collectMemoryMetrics() MemoryMetrics {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	// 計算內存使用百分比
 	usagePercent := float64(m.HeapInuse) / float64(m.HeapSys) * 100
 	if m.HeapSys == 0 {
 		usagePercent = 0
 	}
-	
+
 	return MemoryMetrics{
 		Alloc:        m.Alloc,
 		TotalAlloc:   m.TotalAlloc,
@@ -291,7 +291,7 @@ func (sm *SystemMonitor) collectMemoryMetrics() MemoryMetrics {
 // collectGoroutineMetrics 收集 Goroutine 指標
 func (sm *SystemMonitor) collectGoroutineMetrics() GoroutineMetrics {
 	total := runtime.NumGoroutine()
-	
+
 	// 簡化實現，實際可以通過 runtime.Stack 獲取更詳細信息
 	return GoroutineMetrics{
 		Total:   total,
@@ -306,12 +306,12 @@ func (sm *SystemMonitor) collectGoroutineMetrics() GoroutineMetrics {
 func (sm *SystemMonitor) collectGCMetrics() GCMetrics {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	lastGC := time.Time{}
 	if m.LastGC != 0 {
 		lastGC = time.Unix(0, int64(m.LastGC))
 	}
-	
+
 	return GCMetrics{
 		NumGC:         m.NumGC,
 		PauseTotal:    time.Duration(m.PauseTotalNs),
@@ -325,7 +325,7 @@ func (sm *SystemMonitor) collectGCMetrics() GCMetrics {
 // checkAlerts 檢查警報
 func (sm *SystemMonitor) checkAlerts() {
 	sm.metrics.Alerts = sm.metrics.Alerts[:0] // 清空警報
-	
+
 	// 檢查內存使用率
 	if sm.metrics.Memory.UsagePercent > sm.config.AlertThresholds.MemoryUsage {
 		sm.metrics.Alerts = append(sm.metrics.Alerts, Alert{
@@ -337,7 +337,7 @@ func (sm *SystemMonitor) checkAlerts() {
 			Timestamp: time.Now(),
 		})
 	}
-	
+
 	// 檢查 Goroutine 數量
 	if sm.metrics.Runtime.NumGoroutine > sm.config.AlertThresholds.GoroutineCount {
 		sm.metrics.Alerts = append(sm.metrics.Alerts, Alert{
@@ -349,7 +349,7 @@ func (sm *SystemMonitor) checkAlerts() {
 			Timestamp: time.Now(),
 		})
 	}
-	
+
 	// 檢查堆大小
 	if sm.metrics.Memory.HeapAlloc > uint64(sm.config.AlertThresholds.HeapSize) {
 		sm.metrics.Alerts = append(sm.metrics.Alerts, Alert{
@@ -367,7 +367,7 @@ func (sm *SystemMonitor) checkAlerts() {
 func (sm *SystemMonitor) AddCollector(collector MetricsCollector) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	
+
 	sm.collectors = append(sm.collectors, collector)
 }
 
@@ -375,7 +375,7 @@ func (sm *SystemMonitor) AddCollector(collector MetricsCollector) {
 func (sm *SystemMonitor) RemoveCollector(name string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	
+
 	for i, collector := range sm.collectors {
 		if collector.Name() == name {
 			sm.collectors = append(sm.collectors[:i], sm.collectors[i+1:]...)
@@ -388,20 +388,20 @@ func (sm *SystemMonitor) RemoveCollector(name string) {
 func (sm *SystemMonitor) GetMetrics() *SystemMetrics {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	
+
 	// 返回指標的副本
 	metrics := *sm.metrics
-	
+
 	// 深拷貝 CustomMetrics
 	metrics.CustomMetrics = make(map[string]interface{})
 	for k, v := range sm.metrics.CustomMetrics {
 		metrics.CustomMetrics[k] = v
 	}
-	
+
 	// 深拷貝 Alerts
 	metrics.Alerts = make([]Alert, len(sm.metrics.Alerts))
 	copy(metrics.Alerts, sm.metrics.Alerts)
-	
+
 	return &metrics
 }
 
@@ -409,7 +409,7 @@ func (sm *SystemMonitor) GetMetrics() *SystemMetrics {
 func (sm *SystemMonitor) IsRunning() bool {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
-	
+
 	return sm.running
 }
 
@@ -417,9 +417,9 @@ func (sm *SystemMonitor) IsRunning() bool {
 func (sm *SystemMonitor) UpdateConfig(config *MonitorConfig) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	
+
 	sm.config = config
-	
+
 	// 如果正在運行，重新啟動 ticker
 	if sm.running && sm.ticker != nil {
 		sm.ticker.Stop()
@@ -437,7 +437,7 @@ func (sm *SystemMonitor) GetGoroutineProfile() []byte {
 	if !sm.config.EnableGoroutines {
 		return nil
 	}
-	
+
 	// 簡化實現，實際應該使用 pprof
 	buf := make([]byte, 1<<20) // 1MB
 	n := runtime.Stack(buf, true)

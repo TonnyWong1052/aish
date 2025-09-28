@@ -2,7 +2,6 @@ package security
 
 import (
 	"regexp"
-	"strings"
 )
 
 // SensitiveDataSanitizer 敏感數據清理器
@@ -26,10 +25,10 @@ func NewSensitiveDataSanitizer() *SensitiveDataSanitizer {
 		enabled:  true,
 		patterns: make([]SanitizePattern, 0),
 	}
-	
+
 	// 添加默認模式
 	sanitizer.AddDefaultPatterns()
-	
+
 	return sanitizer
 }
 
@@ -45,52 +44,52 @@ func (s *SensitiveDataSanitizer) AddDefaultPatterns() {
 		{"api_key", `(?i)(api[_-]?key|apikey)\s*[:=]\s*["\']?([a-zA-Z0-9._-]{16,})["\']?`, "***REDACTED_API_KEY***", 10},
 		{"bearer_token", `(?i)(bearer\s+)([a-zA-Z0-9._-]{20,})`, "$1***REDACTED_TOKEN***", 10},
 		{"authorization_header", `(?i)(authorization\s*:\s*)(bearer\s+)?([a-zA-Z0-9._-]{20,})`, "$1$2***REDACTED_AUTH***", 10},
-		
+
 		// 密碼
 		{"password", `(?i)(password|pwd|pass)\s*[:=]\s*["\']?([^\s"'\n]{4,})["\']?`, "$1=***REDACTED_PASSWORD***", 9},
 		{"secret", `(?i)(secret|secret_key)\s*[:=]\s*["\']?([a-zA-Z0-9._-]{8,})["\']?`, "$1=***REDACTED_SECRET***", 9},
-		
+
 		// 環境變量
 		{"env_var_key", `(?i)([A-Z][A-Z0-9_]*(?:KEY|SECRET|TOKEN|PASSWORD|PWD))\s*[:=]\s*["\']?([^\s"'\n]+)["\']?`, "$1=***REDACTED***", 8},
-		
+
 		// 數據庫連接字符串
 		{"db_connection", `(?i)(mysql|postgres|mongodb|redis)://[^:]+:([^@/]+)@`, "$1://username:***REDACTED***@", 8},
-		
+
 		// 信用卡號碼
 		{"credit_card", `\b(?:\d{4}[\s-]?){3}\d{4}\b`, "****-****-****-****", 7},
-		
+
 		// 社會安全號碼 (美國)
 		{"ssn", `\b\d{3}-\d{2}-\d{4}\b`, "***-**-****", 7},
-		
+
 		// 電子郵件地址 (部分遮蔽)
 		{"email", `\b([a-zA-Z0-9._%+-]+)@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,})\b`, "***@$2", 5},
-		
+
 		// IP 地址 (私有網絡除外)
 		{"public_ip", `\b(?!(?:10|127|169\.254|172\.(?:1[6-9]|2[0-9]|3[01])|192\.168)\.)(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b`, "***IP_ADDRESS***", 4},
-		
+
 		// JWT 令牌
 		{"jwt_token", `\beyJ[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+\.[a-zA-Z0-9._-]+\b`, "***JWT_TOKEN***", 9},
-		
+
 		// 私鑰
 		{"private_key", `-----BEGIN (?:RSA )?PRIVATE KEY-----[\s\S]*?-----END (?:RSA )?PRIVATE KEY-----`, "***PRIVATE_KEY_REDACTED***", 10},
-		
+
 		// AWS 訪���密鑰
 		{"aws_access_key", `\b(AKIA[0-9A-Z]{16})\b`, "***AWS_ACCESS_KEY***", 10},
 		{"aws_secret_key", `\b([a-zA-Z0-9/+=]{40})\b`, "***AWS_SECRET_KEY***", 9},
-		
+
 		// GitHub 令牌
 		{"github_token", `\bgh[pousr]_[A-Za-z0-9_]{36,}\b`, "***GITHUB_TOKEN***", 10},
-		
+
 		// 常見的 shell 參數
 		{"command_args", `(?i)(--?(?:password|pwd|pass|key|secret|token)[\s=])([^\s]+)`, "$1***REDACTED***", 8},
 	}
-	
+
 	for _, pattern := range defaultPatterns {
 		regex, err := regexp.Compile(pattern.pattern)
 		if err != nil {
 			continue // 跳過無效的正則表達式
 		}
-		
+
 		s.patterns = append(s.patterns, SanitizePattern{
 			Name:        pattern.name,
 			Pattern:     regex,
@@ -99,7 +98,7 @@ func (s *SensitiveDataSanitizer) AddDefaultPatterns() {
 			Priority:    pattern.priority,
 		})
 	}
-	
+
 	// 按優先級排序
 	s.sortPatternsByPriority()
 }
@@ -120,15 +119,15 @@ func (s *SensitiveDataSanitizer) Sanitize(text string) string {
 	if !s.enabled || text == "" {
 		return text
 	}
-	
+
 	result := text
-	
+
 	for _, pattern := range s.patterns {
 		if pattern.Enabled && pattern.Pattern != nil {
 			result = pattern.Pattern.ReplaceAllString(result, pattern.Replacement)
 		}
 	}
-	
+
 	return result
 }
 
@@ -137,12 +136,12 @@ func (s *SensitiveDataSanitizer) SanitizeLines(lines []string) []string {
 	if !s.enabled {
 		return lines
 	}
-	
+
 	result := make([]string, len(lines))
 	for i, line := range lines {
 		result[i] = s.Sanitize(line)
 	}
-	
+
 	return result
 }
 
@@ -151,12 +150,12 @@ func (s *SensitiveDataSanitizer) SanitizeMap(data map[string]interface{}) map[st
 	if !s.enabled {
 		return data
 	}
-	
+
 	result := make(map[string]interface{})
-	
+
 	for key, value := range data {
 		sanitizedKey := s.Sanitize(key)
-		
+
 		switch v := value.(type) {
 		case string:
 			result[sanitizedKey] = s.Sanitize(v)
@@ -173,14 +172,14 @@ func (s *SensitiveDataSanitizer) SanitizeMap(data map[string]interface{}) map[st
 			}
 		}
 	}
-	
+
 	return result
 }
 
 // sanitizeSlice 清理切片中的敏感數據
 func (s *SensitiveDataSanitizer) sanitizeSlice(slice []interface{}) []interface{} {
 	result := make([]interface{}, len(slice))
-	
+
 	for i, item := range slice {
 		switch v := item.(type) {
 		case string:
@@ -197,7 +196,7 @@ func (s *SensitiveDataSanitizer) sanitizeSlice(slice []interface{}) []interface{
 			}
 		}
 	}
-	
+
 	return result
 }
 
@@ -207,7 +206,7 @@ func (s *SensitiveDataSanitizer) AddPattern(name, pattern, replacement string, p
 	if err != nil {
 		return err
 	}
-	
+
 	s.patterns = append(s.patterns, SanitizePattern{
 		Name:        name,
 		Pattern:     regex,
@@ -215,7 +214,7 @@ func (s *SensitiveDataSanitizer) AddPattern(name, pattern, replacement string, p
 		Enabled:     true,
 		Priority:    priority,
 	})
-	
+
 	s.sortPatternsByPriority()
 	return nil
 }
@@ -272,7 +271,7 @@ func (s *SensitiveDataSanitizer) ContainsSensitiveData(text string) bool {
 	if !s.enabled || text == "" {
 		return false
 	}
-	
+
 	for _, pattern := range s.patterns {
 		if pattern.Enabled && pattern.Pattern != nil {
 			if pattern.Pattern.MatchString(text) {
@@ -280,7 +279,7 @@ func (s *SensitiveDataSanitizer) ContainsSensitiveData(text string) bool {
 			}
 		}
 	}
-	
+
 	return false
 }
 
@@ -289,9 +288,9 @@ func (s *SensitiveDataSanitizer) GetMatchedPatterns(text string) []string {
 	if !s.enabled || text == "" {
 		return nil
 	}
-	
+
 	var matched []string
-	
+
 	for _, pattern := range s.patterns {
 		if pattern.Enabled && pattern.Pattern != nil {
 			if pattern.Pattern.MatchString(text) {
@@ -299,7 +298,7 @@ func (s *SensitiveDataSanitizer) GetMatchedPatterns(text string) []string {
 			}
 		}
 	}
-	
+
 	return matched
 }
 
@@ -308,10 +307,10 @@ func (s *SensitiveDataSanitizer) SanitizeCommandLine(command string) string {
 	if !s.enabled {
 		return command
 	}
-	
+
 	// 先應用通用清理
 	result := s.Sanitize(command)
-	
+
 	// 額外的命令行特定清理
 	commandPatterns := []struct {
 		pattern     string
@@ -323,13 +322,13 @@ func (s *SensitiveDataSanitizer) SanitizeCommandLine(command string) string {
 		{`(?i)(\s-[a-z]*t\s+|--token[\s=])([^\s]+)`, "$1***REDACTED***"},
 		{`(?i)(export\s+[A-Z_]*(?:KEY|SECRET|TOKEN|PASSWORD)[^=]*=)([^\s;]+)`, "$1***REDACTED***"},
 	}
-	
+
 	for _, pattern := range commandPatterns {
 		if regex, err := regexp.Compile(pattern.pattern); err == nil {
 			result = regex.ReplaceAllString(result, pattern.replacement)
 		}
 	}
-	
+
 	return result
 }
 
@@ -338,7 +337,7 @@ func valueToString(v interface{}) string {
 	if v == nil {
 		return ""
 	}
-	
+
 	switch val := v.(type) {
 	case string:
 		return val

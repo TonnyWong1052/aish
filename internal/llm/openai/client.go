@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"net/http"
 	"github.com/TonnyWong1052/aish/internal/config"
 	"github.com/TonnyWong1052/aish/internal/llm"
 	"github.com/TonnyWong1052/aish/internal/prompt"
+	"io"
+	"net/http"
 	"strings"
 	"text/template"
 	"time"
@@ -23,13 +23,13 @@ type ChatMessage struct {
 }
 
 type ChatCompletionRequest struct {
-    Model       string        `json:"model"`
-    Messages    []ChatMessage `json:"messages"`
-    Temperature float64       `json:"temperature,omitempty"`
-    MaxTokens   int           `json:"max_tokens,omitempty"`
-    // Some OpenAI-compatible proxies may default to streaming when the field is omitted.
-    // Explicitly include stream:false to force a single JSON response and avoid long-lived connections.
-    Stream      bool          `json:"stream"`
+	Model       string        `json:"model"`
+	Messages    []ChatMessage `json:"messages"`
+	Temperature float64       `json:"temperature,omitempty"`
+	MaxTokens   int           `json:"max_tokens,omitempty"`
+	// Some OpenAI-compatible proxies may default to streaming when the field is omitted.
+	// Explicitly include stream:false to force a single JSON response and avoid long-lived connections.
+	Stream bool `json:"stream"`
 }
 
 type ChatCompletionResponse struct {
@@ -242,153 +242,153 @@ func (p *OpenAIProvider) GenerateCommand(ctx context.Context, promptText string,
 
 // GetAvailableModels fetches all available models from the OpenAI API
 func (p *OpenAIProvider) GetAvailableModels(ctx context.Context) ([]string, error) {
-    if p.cfg.APIKey == "" {
-        return nil, errors.New("API key is missing for OpenAI")
-    }
+	if p.cfg.APIKey == "" {
+		return nil, errors.New("API key is missing for OpenAI")
+	}
 
-    // 嘗試兩組 URL 變體：
-    // 1) 受管 /v1 前綴（預設） 2) 直接使用基底端點（不追加 /v1）
-    base := strings.TrimSuffix(p.cfg.APIEndpoint, "/")
-    managed := p.resolveURL("/models")
-    direct := base + "/models"
+	// 嘗試兩組 URL 變體：
+	// 1) 受管 /v1 前綴（預設） 2) 直接使用基底端點（不追加 /v1）
+	base := strings.TrimSuffix(p.cfg.APIEndpoint, "/")
+	managed := p.resolveURL("/models")
+	direct := base + "/models"
 
-    // 順序：若配置顯示省略 /v1，則優先 direct；否則優先 managed
-    candidates := []string{managed, direct}
-    if p.cfg.OmitV1Prefix {
-        candidates = []string{direct, managed}
-    }
+	// 順序：若配置顯示省略 /v1，則優先 direct；否則優先 managed
+	candidates := []string{managed, direct}
+	if p.cfg.OmitV1Prefix {
+		candidates = []string{direct, managed}
+	}
 
-    var firstErr error
-    var lastErr error
-    for _, apiURL := range candidates {
-        // 先嘗試 POST（必要時回退到 GET）
-        postReq, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader([]byte("{}")))
-        if err != nil {
-            if firstErr == nil {
-                firstErr = fmt.Errorf("failed to create POST request: %w", err)
-            }
-            lastErr = firstErr
-            continue
-        }
-        postReq.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
-        postReq.Header.Set("Content-Type", "application/json")
+	var firstErr error
+	var lastErr error
+	for _, apiURL := range candidates {
+		// 先嘗試 POST（必要時回退到 GET）
+		postReq, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader([]byte("{}")))
+		if err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to create POST request: %w", err)
+			}
+			lastErr = firstErr
+			continue
+		}
+		postReq.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
+		postReq.Header.Set("Content-Type", "application/json")
 
-        resp, err := p.client.Do(postReq)
-        if err != nil {
-            if firstErr == nil {
-                firstErr = fmt.Errorf("request failed: %w", err)
-            }
-            lastErr = fmt.Errorf("request failed: %w", err)
-            continue
-        }
+		resp, err := p.client.Do(postReq)
+		if err != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("request failed: %w", err)
+			}
+			lastErr = fmt.Errorf("request failed: %w", err)
+			continue
+		}
 
-        // 若 405，回退 GET
-        if resp.StatusCode == http.StatusMethodNotAllowed {
-            resp.Body.Close()
-            getReq, gerr := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
-            if gerr != nil {
-                if firstErr == nil {
-                    firstErr = fmt.Errorf("failed to create GET request: %w", gerr)
-                }
-                lastErr = firstErr
-                continue
-            }
-            getReq.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
-            getReq.Header.Set("Content-Type", "application/json")
-            resp, err = p.client.Do(getReq)
-            if err != nil {
-                if firstErr == nil {
-                    firstErr = fmt.Errorf("request failed: %w", err)
-                }
-                lastErr = fmt.Errorf("request failed: %w", err)
-                continue
-            }
-        }
+		// 若 405，回退 GET
+		if resp.StatusCode == http.StatusMethodNotAllowed {
+			resp.Body.Close()
+			getReq, gerr := http.NewRequestWithContext(ctx, "GET", apiURL, nil)
+			if gerr != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("failed to create GET request: %w", gerr)
+				}
+				lastErr = firstErr
+				continue
+			}
+			getReq.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
+			getReq.Header.Set("Content-Type", "application/json")
+			resp, err = p.client.Do(getReq)
+			if err != nil {
+				if firstErr == nil {
+					firstErr = fmt.Errorf("request failed: %w", err)
+				}
+				lastErr = fmt.Errorf("request failed: %w", err)
+				continue
+			}
+		}
 
-        // 讀取完整 body 以便診斷與重試（避免 decoder 消耗流）
-        bodyBytes, rerr := io.ReadAll(resp.Body)
-        resp.Body.Close()
-        if rerr != nil {
-            if firstErr == nil {
-                firstErr = fmt.Errorf("failed to read response: %w", rerr)
-            }
-            lastErr = firstErr
-            continue
-        }
+		// 讀取完整 body 以便診斷與重試（避免 decoder 消耗流）
+		bodyBytes, rerr := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if rerr != nil {
+			if firstErr == nil {
+				firstErr = fmt.Errorf("failed to read response: %w", rerr)
+			}
+			lastErr = firstErr
+			continue
+		}
 
-        if resp.StatusCode != http.StatusOK {
-            // 未授權、金鑰錯誤等，直接回傳（換 URL 也不會修好）
-            if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-                return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, firstN(string(bodyBytes), 200))
-            }
-            // 其他狀況先記錄，嘗試下一個候選 URL
-            lastErr = fmt.Errorf("API returned status %d: %s", resp.StatusCode, firstN(string(bodyBytes), 200))
-            if firstErr == nil {
-                firstErr = lastErr
-            }
-            continue
-        }
+		if resp.StatusCode != http.StatusOK {
+			// 未授權、金鑰錯誤等，直接回傳（換 URL 也不會修好）
+			if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+				return nil, fmt.Errorf("API returned status %d: %s", resp.StatusCode, firstN(string(bodyBytes), 200))
+			}
+			// 其他狀況先記錄，嘗試下一個候選 URL
+			lastErr = fmt.Errorf("API returned status %d: %s", resp.StatusCode, firstN(string(bodyBytes), 200))
+			if firstErr == nil {
+				firstErr = lastErr
+			}
+			continue
+		}
 
-        // 嘗試解析 JSON
-        var modelsResp ModelsResponse
-        if err := json.Unmarshal(bodyBytes, &modelsResp); err != nil {
-            // 如果像 HTML（以 '<' 開頭）或非 JSON，換下一個候選 URL
-            trimmed := strings.TrimSpace(string(bodyBytes))
-            if strings.HasPrefix(trimmed, "<") {
-                lastErr = fmt.Errorf("non-JSON response (HTML): %s", firstN(trimmed, 120))
-                if firstErr == nil {
-                    firstErr = lastErr
-                }
-                continue
-            }
-            lastErr = fmt.Errorf("failed to decode response: %v; body: %s", err, firstN(trimmed, 200))
-            if firstErr == nil {
-                firstErr = lastErr
-            }
-            continue
-        }
+		// 嘗試解析 JSON
+		var modelsResp ModelsResponse
+		if err := json.Unmarshal(bodyBytes, &modelsResp); err != nil {
+			// 如果像 HTML（以 '<' 開頭）或非 JSON，換下一個候選 URL
+			trimmed := strings.TrimSpace(string(bodyBytes))
+			if strings.HasPrefix(trimmed, "<") {
+				lastErr = fmt.Errorf("non-JSON response (HTML): %s", firstN(trimmed, 120))
+				if firstErr == nil {
+					firstErr = lastErr
+				}
+				continue
+			}
+			lastErr = fmt.Errorf("failed to decode response: %v; body: %s", err, firstN(trimmed, 200))
+			if firstErr == nil {
+				firstErr = lastErr
+			}
+			continue
+		}
 
-        if modelsResp.Error != nil {
-            // 提取錯誤
-            var errMsg string
-            if errMap, ok := modelsResp.Error.(map[string]interface{}); ok {
-                if msg, ok := errMap["message"].(string); ok {
-                    errMsg = msg
-                }
-            }
-            if errMsg == "" {
-                errMsg = fmt.Sprintf("%v", modelsResp.Error)
-            }
-            // 金鑰或權限錯誤，直接回傳
-            if strings.Contains(strings.ToLower(errMsg), "auth") || strings.Contains(strings.ToLower(errMsg), "key") {
-                return nil, fmt.Errorf("API error: %s", errMsg)
-            }
-            lastErr = fmt.Errorf("API error: %s", errMsg)
-            if firstErr == nil {
-                firstErr = lastErr
-            }
-            continue
-        }
+		if modelsResp.Error != nil {
+			// 提取錯誤
+			var errMsg string
+			if errMap, ok := modelsResp.Error.(map[string]interface{}); ok {
+				if msg, ok := errMap["message"].(string); ok {
+					errMsg = msg
+				}
+			}
+			if errMsg == "" {
+				errMsg = fmt.Sprintf("%v", modelsResp.Error)
+			}
+			// 金鑰或權限錯誤，直接回傳
+			if strings.Contains(strings.ToLower(errMsg), "auth") || strings.Contains(strings.ToLower(errMsg), "key") {
+				return nil, fmt.Errorf("API error: %s", errMsg)
+			}
+			lastErr = fmt.Errorf("API error: %s", errMsg)
+			if firstErr == nil {
+				firstErr = lastErr
+			}
+			continue
+		}
 
-        // 成功
-        var models []string
-        for _, model := range modelsResp.Data {
-            models = append(models, model.ID)
-        }
-        // 根據成功的 URL 調整當前 session 的使用策略
-        if apiURL == direct {
-            p.cfg.OmitV1Prefix = true
-        }
-        return models, nil
-    }
+		// 成功
+		var models []string
+		for _, model := range modelsResp.Data {
+			models = append(models, model.ID)
+		}
+		// 根據成功的 URL 調整當前 session 的使用策略
+		if apiURL == direct {
+			p.cfg.OmitV1Prefix = true
+		}
+		return models, nil
+	}
 
-    if firstErr != nil {
-        return nil, firstErr
-    }
-    if lastErr != nil {
-        return nil, lastErr
-    }
-    return nil, fmt.Errorf("failed to fetch models from all endpoint variants")
+	if firstErr != nil {
+		return nil, firstErr
+	}
+	if lastErr != nil {
+		return nil, lastErr
+	}
+	return nil, fmt.Errorf("failed to fetch models from all endpoint variants")
 }
 
 // VerifyConnection implements the llm.Provider interface.
@@ -416,68 +416,68 @@ func (p *OpenAIProvider) VerifyConnection(ctx context.Context) ([]string, error)
 
 // chatCompletion makes a chat completion request to OpenAI API
 func (p *OpenAIProvider) chatCompletion(ctx context.Context, message string) (string, error) {
-    apiURL := p.resolveURL("/chat/completions")
+	apiURL := p.resolveURL("/chat/completions")
 
-    reqBody := ChatCompletionRequest{
-        Model: p.cfg.Model,
-        Messages: []ChatMessage{
-            {
-                Role:    "user",
-                Content: message,
-            },
-        },
-        Temperature: 0.1,
-        MaxTokens:   1000,
-        Stream:      false, // Explicitly disable streaming to get a single JSON response
-    }
+	reqBody := ChatCompletionRequest{
+		Model: p.cfg.Model,
+		Messages: []ChatMessage{
+			{
+				Role:    "user",
+				Content: message,
+			},
+		},
+		Temperature: 0.1,
+		MaxTokens:   1000,
+		Stream:      false, // Explicitly disable streaming to get a single JSON response
+	}
 
 	jsonBody, err := json.Marshal(reqBody)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-    // Build the request (non-streaming)
-    req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(jsonBody))
-    if err != nil {
-        return "", fmt.Errorf("failed to create request: %w", err)
-    }
-    // Only set Authorization if we actually have a key; some proxies reject empty Bearer tokens.
-    if strings.TrimSpace(p.cfg.APIKey) != "" {
-        req.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
-    }
-    req.Header.Set("Content-Type", "application/json")
-    // Request non-streaming JSON responses explicitly (some proxies respect Accept)
-    req.Header.Set("Accept", "application/json")
+	// Build the request (non-streaming)
+	req, err := http.NewRequestWithContext(ctx, "POST", apiURL, bytes.NewReader(jsonBody))
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+	// Only set Authorization if we actually have a key; some proxies reject empty Bearer tokens.
+	if strings.TrimSpace(p.cfg.APIKey) != "" {
+		req.Header.Set("Authorization", "Bearer "+p.cfg.APIKey)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	// Request non-streaming JSON responses explicitly (some proxies respect Accept)
+	req.Header.Set("Accept", "application/json")
 
-    // Basic retry for transient upstream failures (e.g., 502/503/504) or transport errors
-    var resp *http.Response
-    var doErr error
-    for attempt := 0; attempt < 3; attempt++ {
-        // Ensure body can be re-read across retries
-        if attempt > 0 {
-            // Re-create the request body reader since it is single-use
-            req.Body = io.NopCloser(bytes.NewReader(jsonBody))
-        }
-        resp, doErr = p.client.Do(req)
-        if doErr != nil {
-            // Backoff and retry on network errors
-            time.Sleep(time.Duration(250*(attempt+1)) * time.Millisecond)
-            continue
-        }
-        // Retry on common transient upstream errors
-        if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
-            // Drain and close body before retry to avoid leaks
-            io.Copy(io.Discard, resp.Body)
-            resp.Body.Close()
-            time.Sleep(time.Duration(250*(attempt+1)) * time.Millisecond)
-            continue
-        }
-        break
-    }
-    if doErr != nil {
-        return "", fmt.Errorf("request failed: %w", doErr)
-    }
-    defer resp.Body.Close()
+	// Basic retry for transient upstream failures (e.g., 502/503/504) or transport errors
+	var resp *http.Response
+	var doErr error
+	for attempt := 0; attempt < 3; attempt++ {
+		// Ensure body can be re-read across retries
+		if attempt > 0 {
+			// Re-create the request body reader since it is single-use
+			req.Body = io.NopCloser(bytes.NewReader(jsonBody))
+		}
+		resp, doErr = p.client.Do(req)
+		if doErr != nil {
+			// Backoff and retry on network errors
+			time.Sleep(time.Duration(250*(attempt+1)) * time.Millisecond)
+			continue
+		}
+		// Retry on common transient upstream errors
+		if resp.StatusCode == http.StatusBadGateway || resp.StatusCode == http.StatusServiceUnavailable || resp.StatusCode == http.StatusGatewayTimeout {
+			// Drain and close body before retry to avoid leaks
+			io.Copy(io.Discard, resp.Body)
+			resp.Body.Close()
+			time.Sleep(time.Duration(250*(attempt+1)) * time.Millisecond)
+			continue
+		}
+		break
+	}
+	if doErr != nil {
+		return "", fmt.Errorf("request failed: %w", doErr)
+	}
+	defer resp.Body.Close()
 
 	// Read entire body so we can both parse JSON or present helpful text on failure
 	body, readErr := io.ReadAll(resp.Body)
