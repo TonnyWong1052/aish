@@ -17,6 +17,9 @@ if (-not (Test-Path $AISH_STATE_DIR)) {
 $envFile = Join-Path $AISH_STATE_DIR "env.ps1"
 if (Test-Path $envFile) { . $envFile }
 
+# 預設：跳過所有非系統路徑的使用者安裝命令（可用 AISH_SKIP_ALL_USER_COMMANDS=0 覆寫）
+if (-not $env:AISH_SKIP_ALL_USER_COMMANDS) { $env:AISH_SKIP_ALL_USER_COMMANDS = '1' }
+
 # Decide whether to skip a command (interactive tools or user-installed commands)
 function __aish_ShouldSkipCmd([string]$cmdLine) {
     if ([string]::IsNullOrWhiteSpace($cmdLine)) { return $false }

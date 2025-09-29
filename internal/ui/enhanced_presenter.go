@@ -302,7 +302,7 @@ func (ep *EnhancedPresenter) ShowTable(headers []string, rows [][]string, title 
 		table := pterm.DefaultTable.WithHasHeader(len(headers) > 0)
 
 		if title != "" {
-			pterm.DefaultHeader.Printf(title)
+			pterm.DefaultHeader.Printf("%s", title)
 			pterm.Println()
 		}
 

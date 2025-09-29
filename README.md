@@ -4,7 +4,7 @@
 
 A powerful command-line tool that integrates with Google Gemini AI to provide intelligent terminal assistance. AISH automatically captures command errors, analyzes them with AI, and offers smart suggestions and corrections.
 
-> Latest stable release: **v0.0.1**
+> Latest stable release: **v0.0.2**
 
 ![AISH Demo](./demo/demo.gif)
 
@@ -33,7 +33,23 @@ AISH integrates with your shell environment and LLM providers to provide intelli
 
 ## Installation & Configuration
 
-### 1. Using Homebrew (Easiest)
+### 1. Using APT (Ubuntu/Debian)
+
+If you're on Ubuntu, Debian, or other APT-based Linux distributions:
+
+```bash
+# Add the repository GPG key
+curl -fsSL https://tonnywong1052.github.io/aish-apt-repo/KEY.gpg | sudo gpg --dearmor -o /usr/share/keyrings/aish-archive-keyring.gpg
+
+# Add the repository
+echo "deb [signed-by=/usr/share/keyrings/aish-archive-keyring.gpg] https://tonnywong1052.github.io/aish-apt-repo stable main" | sudo tee /etc/apt/sources.list.d/aish.list
+
+# Update package list and install
+sudo apt update
+sudo apt install aish
+```
+
+### 2. Using Homebrew (macOS/Linux)
 
 If you're on macOS or Linux with Homebrew installed:
 
@@ -42,7 +58,7 @@ brew tap TonnyWong1052/aish
 brew install aish
 ```
 
-### 2. Using the Installation Script (Recommended)
+### 3. Using the Installation Script (Cross-platform)
 
 The script will build the binary, install it into `~/bin`, and provide instructions for adding it to your `PATH`.
 
@@ -58,7 +74,7 @@ cd aish
 ./scripts/install.sh --with-init
 ```
 
-### 3. Manual Installation
+### 4. Manual Installation
 
 If you prefer to build and install manually:
 

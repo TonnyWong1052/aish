@@ -133,6 +133,29 @@ func (c *Config) Validate() error {
 	return nil
 }
 
+// validateBasicConfigForInit validates basic configuration with lenient rules for initialization
+func (v *Validator) validateBasicConfigForInit(c *Config) {
+	// 對於初始化，只檢查必要的結構性問題，不檢查API密鑰等
+	if c.DefaultProvider == "" && len(c.Providers) > 0 {
+		// 設置第一個可用的提供商
+		for name := range c.Providers {
+			c.DefaultProvider = name
+			break
+		}
+	}
+
+	// 確保至少有一個提供商定義（即使沒有完全配置）
+	if len(c.Providers) == 0 {
+		v.AddErrorWithSuggestions("providers", "",
+			"必須配置至少一個LLM提供商",
+			[]string{
+				"運行 'aish init' 來設置LLM提供商",
+				"手動配置OpenAI: 'aish config set providers.openai.api_key YOUR_KEY'",
+				"使用Gemini CLI (無需API密鑰): 'aish config set default_provider gemini-cli'",
+			}, "error")
+	}
+}
+
 // validateBasicConfig validates basic configuration
 func (v *Validator) validateBasicConfig(c *Config) {
 	// Validate default provider
@@ -185,6 +208,37 @@ func (v *Validator) validateBasicConfig(c *Config) {
 				"使用 'aish config set enabled true' 啟用",
 				"運行 'aish init' 進行完整設置",
 			})
+	}
+}
+
+// validateProvidersForInit validates provider configuration with lenient rules for initialization
+func (v *Validator) validateProvidersForInit(c *Config) {
+	// 對於初始化，只檢查基本的結構性問題，不檢查API密鑰或項目ID
+	supportedProviders := make(map[string]bool)
+	for _, provider := range GetSupportedProviders() {
+		supportedProviders[provider] = true
+	}
+
+	for name, provider := range c.Providers {
+		fieldPrefix := fmt.Sprintf("providers.%s", name)
+
+		// Check if provider name is supported
+		if !supportedProviders[name] {
+			v.AddError(fieldPrefix, name, "unsupported provider type")
+			continue
+		}
+
+		// 只檢查端點URL格式（如果提供）
+		if provider.APIEndpoint != "" {
+			if err := v.validateURL(provider.APIEndpoint); err != nil {
+				v.AddError(fieldPrefix+".api_endpoint", provider.APIEndpoint, err.Error())
+			}
+		}
+
+		// 確保模型名稱不為完全空
+		if provider.Model == "" {
+			v.AddError(fieldPrefix+".model", provider.Model, "模型名稱不能為空")
+		}
 	}
 }
 
@@ -367,15 +421,23 @@ func (v *Validator) validateUserPreferences(c *Config) {
 	prefs := c.UserPreferences
 
 	// 驗證語言設置
-	validLanguages := []string{"en", "english", "zh", "zh-CN", "zh-TW", "chinese", "ja", "japanese"}
+	validLanguages := []string{
+		"english", "en",
+		"zh-TW", "zh-CN", "zh", "chinese",
+		"ja", "japanese",
+		"ko", "korean",
+		"es", "spanish",
+		"fr", "french",
+		"de", "german",
+	}
 	if prefs.Language != "" && !v.contains(validLanguages, prefs.Language) {
 		v.AddWarning("user_preferences.language", prefs.Language,
 			"Unsupported language setting",
 			[]string{
-				"Supported languages: en (English), zh/zh-CN/zh-TW (Chinese), ja (Japanese)",
-				"Set language: 'aish config set language en' for English",
-				"Use ISO codes (en, zh, ja) or full names (english, chinese, japanese)",
-				"Default language is English (en)",
+				"Supported languages: english/en, zh-TW/zh-CN/chinese, ja/japanese, ko/korean, es/spanish, fr/french, de/german",
+				"Set language: 'aish config set language english' for English",
+				"Use ISO codes (en, zh-TW, ja, ko, es, fr, de) or full names (english, chinese, japanese, etc.)",
+				"Default language is English",
 			})
 	} else if prefs.Language == "" {
 		v.AddInfo("user_preferences.language", "",
@@ -583,8 +645,16 @@ func (c *Config) ValidateAndFix() ([]string, error) {
 		fixes = append(fixes, "修復日誌備份數量為 5")
 	}
 
-	// 修復語言：若為空或不在允許清單，回退為 en (English)
-	validLanguages := []string{"en", "english", "zh", "zh-cn", "zh-tw", "chinese", "ja", "japanese"}
+	// 修復語言:若為空或不在允許清單,回退為 english
+	validLanguages := []string{
+		"english", "en",
+		"zh-tw", "zh-cn", "zh", "chinese",
+		"ja", "japanese",
+		"ko", "korean",
+		"es", "spanish",
+		"fr", "french",
+		"de", "german",
+	}
 	lang := strings.ToLower(strings.TrimSpace(c.UserPreferences.Language))
 	isValid := false
 	for _, v := range validLanguages {
@@ -594,14 +664,14 @@ func (c *Config) ValidateAndFix() ([]string, error) {
 		}
 	}
 	if !isValid {
-		c.UserPreferences.Language = "en"
-		fixes = append(fixes, "Fixed language to en (English)")
+		c.UserPreferences.Language = "english"
+		fixes = append(fixes, "Fixed language to english (English)")
 	}
 
 	// 在修復後進行基本驗證（不包括警告，只檢查致命錯誤）
 	validator := NewValidator()
-	validator.validateBasicConfig(c)
-	validator.validateProviders(c)
+	validator.validateBasicConfigForInit(c)  // Use lenient validation for init
+	validator.validateProvidersForInit(c)    // Use lenient validation for init
 
 	// 只檢查嚴重錯誤
 	for _, validationErr := range validator.GetErrors() {

@@ -1,13 +1,16 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/TonnyWong1052/aish/internal/config"
 	"github.com/TonnyWong1052/aish/internal/shell"
+	"github.com/TonnyWong1052/aish/internal/ui"
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 )
@@ -89,12 +92,130 @@ It will:
 		if cfg.Providers == nil {
 			cfg.Providers = make(map[string]config.ProviderConfig)
 		}
-		// 轉交給與 `aish config` 相同的邏輯，確保可用鍵盤選單等互動式體驗
-		_ = configCmd.Flags().Set("from-init", "true")
-		runConfigureLogic(configCmd, nil)
-		_ = configCmd.Flags().Set("from-init", "false")
+
+		// Use the proper AISH configuration wizard for LLM provider setup
+		if isInteractiveTTY() {
+			// Interactive mode - use the full configuration wizard
+			wizard := ui.NewConfigWizard(cfg, true) // true = enable advanced settings prompt
+			if err := wizard.Run(); err != nil {
+				pterm.Error.Printfln("Configuration wizard failed: %v", err)
+				fmt.Println("[aish] Config: wizard failed")
+				os.Exit(1)
+			}
+		} else {
+			// Non-interactive mode - use simple text-based configuration
+			if err := runSimpleProviderConfig(cfg); err != nil {
+				pterm.Error.Printfln("Configuration failed: %v", err)
+				fmt.Println("[aish] Config: wizard failed")
+				os.Exit(1)
+			}
+		}
+
 		fmt.Println("[aish] Config: wizard finished (you can run 'aish config' anytime)")
 	},
+}
+
+// runSimpleProviderConfig provides a simple text-based configuration for non-interactive environments
+func runSimpleProviderConfig(cfg *config.Config) error {
+	reader := bufio.NewReader(os.Stdin)
+
+	// Show available providers
+	providers := []string{"openai", "gemini", "gemini-cli"}
+	fmt.Printf("Available providers: %s\n", strings.Join(providers, ", "))
+	fmt.Println("Tip: 'gemini-cli' is recommended (OAuth login, no API key, easy setup, often higher free usage)")
+	fmt.Printf("Default provider [%s]: ", cfg.DefaultProvider)
+
+	provider, _ := reader.ReadString('\n')
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		provider = cfg.DefaultProvider
+	}
+
+	// Validate provider
+	validProvider := false
+	for _, p := range providers {
+		if p == provider {
+			validProvider = true
+			break
+		}
+	}
+	if !validProvider {
+		return fmt.Errorf("invalid provider: %s", provider)
+	}
+
+	cfg.DefaultProvider = provider
+
+	// Get existing provider config or create new one
+	providerCfg, exists := cfg.Providers[provider]
+	if !exists {
+		// Set up default configuration based on provider type
+		switch provider {
+		case "openai":
+			providerCfg = config.ProviderConfig{
+				APIEndpoint: config.OpenAIAPIEndpoint,
+				Model:       config.DefaultOpenAIModel,
+			}
+		case "gemini":
+			providerCfg = config.ProviderConfig{
+				APIEndpoint: config.GeminiAPIEndpoint,
+				Model:       config.DefaultGeminiModel,
+			}
+		case "gemini-cli":
+			providerCfg = config.ProviderConfig{
+				APIEndpoint: config.GeminiCLIAPIEndpoint,
+				Model:       config.DefaultGeminiCLIModel,
+				Project:     "YOUR_GEMINI_PROJECT_ID",
+			}
+		}
+	}
+
+	// Configure API endpoint
+	fmt.Printf("API endpoint [%s]: ", providerCfg.APIEndpoint)
+	endpoint, _ := reader.ReadString('\n')
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint != "" {
+		providerCfg.APIEndpoint = endpoint
+	}
+
+	// Configure model
+	fmt.Printf("Model [%s]: ", providerCfg.Model)
+	model, _ := reader.ReadString('\n')
+	model = strings.TrimSpace(model)
+	if model != "" {
+		providerCfg.Model = model
+	}
+
+	// Configure provider-specific settings
+	switch provider {
+	case "openai", "gemini":
+		fmt.Print("API Key: ")
+		apiKey, _ := reader.ReadString('\n')
+		apiKey = strings.TrimSpace(apiKey)
+		if apiKey != "" {
+			providerCfg.APIKey = apiKey
+		}
+	case "gemini-cli":
+		fmt.Print("Project ID (hidden): ")
+		projectID, _ := reader.ReadString('\n')
+		projectID = strings.TrimSpace(projectID)
+		if projectID != "" {
+			providerCfg.Project = projectID
+		}
+	}
+
+	// Save the configuration
+	cfg.Providers[provider] = providerCfg
+
+	// Test configuration (optional)
+	pterm.Info.Println("Testing configuration...")
+
+	// Save the configuration
+	if err := cfg.Save(); err != nil {
+		return fmt.Errorf("failed to save configuration: %w", err)
+	}
+
+	pterm.Success.Println("Configuration saved.")
+	return nil
 }
 
 func init() {

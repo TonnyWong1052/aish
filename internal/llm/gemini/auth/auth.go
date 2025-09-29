@@ -51,6 +51,20 @@ var (
 	mu sync.Mutex
 )
 
+// shouldDebug controls whether to output debug information for Gemini auth flows.
+// Enabled when environment variable AISH_GEMINI_DEBUG is set to one of: 1, true, yes, debug
+func shouldDebug() bool {
+    v := strings.TrimSpace(strings.ToLower(os.Getenv("AISH_GEMINI_DEBUG")))
+    return v == "1" || v == "true" || v == "yes" || v == "debug"
+}
+
+// debugf writes formatted debug logs to stderr when shouldDebug is true.
+func debugf(format string, args ...any) {
+    if shouldDebug() {
+        fmt.Fprintf(os.Stderr, format, args...)
+    }
+}
+
 // refreshThreshold returns the proactive refresh window. If the token will
 // expire within this duration, we attempt a refresh. Default is 2 hours, and
 // can be overridden via env var AISH_GEMINI_REFRESH_THRESHOLD (e.g. "90m", "2h").
@@ -115,18 +129,18 @@ func EnsureValidToken(ctx context.Context) error {
 	// --- Token is confirmed將過期，嘗試自動刷新 ---
 	// 1) 優先使用本機 gemini-cli
 	if hasGeminiCLIInPath() {
-		fmt.Fprintln(os.Stderr, "auth: Gemini token is expiring, delegating to `gemini-cli auth refresh`...")
+		debugf("auth: Gemini token is expiring, delegating to `gemini-cli auth refresh`...\n")
 		cmd := exec.CommandContext(ctx, "gemini-cli", "auth", "refresh")
 		var stderr bytes.Buffer
 		cmd.Stderr = &stderr
 		if err := cmd.Run(); err != nil {
 			// 失敗則嘗試 HTTP Refresh 作為後備
-			fmt.Fprintf(os.Stderr, "auth: gemini-cli refresh failed, trying HTTP refresh... (%v)\n", err)
+			debugf("auth: gemini-cli refresh failed, trying HTTP refresh... (%v)\n", err)
 			if herr := httpRefreshToken(credsPath); herr != nil {
 				// 再嘗試 gcloud ADC 取得 access token
 				if tok, gerr := gcloudFetchAccessToken(ctx); gerr == nil {
 					if werr := writeAccessTokenAndUpdate(credsPath, tok, 50*time.Minute); werr == nil {
-						fmt.Fprintln(os.Stderr, "auth: Token refreshed via gcloud (ADC)")
+						debugf("auth: Token refreshed via gcloud (ADC)\n")
 					} else {
 						tokenCache = nil
 						return fmt.Errorf("auth: token refresh failed (cli+http), gcloud wrote token but update failed: %v", werr)
@@ -142,7 +156,7 @@ func EnsureValidToken(ctx context.Context) error {
 		if err := httpRefreshToken(credsPath); err != nil {
 			if tok, gerr := gcloudFetchAccessToken(ctx); gerr == nil {
 				if werr := writeAccessTokenAndUpdate(credsPath, tok, 50*time.Minute); werr == nil {
-					fmt.Fprintln(os.Stderr, "auth: Token refreshed via gcloud (ADC)")
+					debugf("auth: Token refreshed via gcloud (ADC)\n")
 				} else {
 					tokenCache = nil
 					return fmt.Errorf("auth: HTTP refresh failed and gcloud write failed: %v", werr)
@@ -157,7 +171,7 @@ func EnsureValidToken(ctx context.Context) error {
 	// Invalidate the cache so the next check will re-read the updated file
 	tokenCache = nil
 
-	fmt.Fprintln(os.Stderr, "auth: Token refresh delegated successfully.")
+	debugf("auth: Token refresh delegated successfully.\n")
 	return nil
 }
 
@@ -320,7 +334,7 @@ func httpRefreshToken(credsPath string) error {
 			return fmt.Errorf("failed to update oauth_creds.json: %v", err)
 		}
 	}
-	fmt.Fprintln(os.Stderr, "auth: Token refreshed via HTTP (json-compatible format)")
+	debugf("auth: Token refreshed via HTTP (json-compatible format)\n")
 	return nil
 }
 

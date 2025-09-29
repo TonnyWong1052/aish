@@ -74,11 +74,18 @@ var configGetCmd = &cobra.Command{
 		case "user_preferences.language", "language":
 			fmt.Println(cfg.UserPreferences.Language)
 			return
-		case "auto_execute", "auto-execute", "user_preferences.auto_execute":
+	case "auto_execute", "auto-execute", "user_preferences.auto_execute":
 			if cfg.UserPreferences.AutoExecute {
 				fmt.Println("true")
 			} else {
 				fmt.Println("false")
+			}
+			return
+		case "user_preferences.enabled_llm_triggers", "enabled_llm_triggers":
+			if len(cfg.UserPreferences.EnabledLLMTriggers) == 0 {
+				fmt.Println("")
+			} else {
+				fmt.Println(strings.Join(cfg.UserPreferences.EnabledLLMTriggers, ","))
 			}
 			return
 		}
@@ -147,6 +154,16 @@ var configSetCmd = &cobra.Command{
 				pterm.Error.Printfln("Invalid value for auto_execute: %s. Use: true/false, 1/0, yes/no, on/off", value)
 				os.Exit(1)
 			}
+		case "user_preferences.enabled_llm_triggers", "enabled_llm_triggers":
+			// 逗號分隔清單；允許空字串代表清空
+			var list []string
+			for _, part := range strings.Split(value, ",") {
+				p := strings.TrimSpace(part)
+				if p != "" {
+					list = append(list, p)
+				}
+			}
+			cfg.UserPreferences.EnabledLLMTriggers = list
 		default:
 			if strings.HasPrefix(lower, "providers.") {
 				parts := strings.Split(lower, ".")
@@ -192,7 +209,7 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 	if !cmd.Flags().Changed("interactive") {
 		interactive = isInteractiveTTY()
 	}
-	advancedGate, _ := cmd.Flags().GetBool("from-init")
+	_, _ = cmd.Flags().GetBool("from-init")
 
 	cfg, err := config.Load()
 	if err != nil {
@@ -213,15 +230,15 @@ func runConfigureLogic(cmd *cobra.Command, args []string) {
 		cfg.Providers = make(map[string]config.ProviderConfig)
 	}
 
-	// Only execute TUI wizard when interactive flag is true and TTY is available
-	if interactive && isInteractiveTTY() {
+	// Execute TUI wizard when interactive flag is true (either explicitly set or auto-detected in TTY)
+	if interactive {
 		pterm.Info.Println("Running interactive TUI configuration...")
-		// Delegate to centralized UI wizard to avoid duplicated logic
-		wiz := ui.NewConfigWizard(cfg, advancedGate)
-		if err := wiz.Run(); err != nil {
+		// Use the new settings TUI system
+		if err := ui.RunSettingsTUI(cfg); err != nil {
 			pterm.Error.Printfln("Configuration failed: %v", err)
 			os.Exit(1)
 		}
+		pterm.Success.Println("Configuration saved.")
 		return
 	} else {
 		if err := plainConfigureWizard(cfg); err != nil {
@@ -389,7 +406,7 @@ func plainConfigureWizard(cfg *config.Config) error {
 
 	// Set defaults
 	if cfg.UserPreferences.Language == "" {
-		cfg.UserPreferences.Language = "en"
+		cfg.UserPreferences.Language = "english"
 	}
 	if cfg.UserPreferences.MaxHistorySize == 0 {
 		cfg.UserPreferences.MaxHistorySize = 100

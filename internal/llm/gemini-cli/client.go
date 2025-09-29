@@ -8,20 +8,22 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/TonnyWong1052/aish/internal/config"
-	"github.com/TonnyWong1052/aish/internal/llm"
-	"github.com/TonnyWong1052/aish/internal/llm/gemini/auth"
-	"github.com/TonnyWong1052/aish/internal/prompt"
-	"github.com/TonnyWong1052/aish/internal/ui"
 	"io"
 	"net/http"
 	neturl "net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/TonnyWong1052/aish/internal/config"
+	"github.com/TonnyWong1052/aish/internal/llm"
+	"github.com/TonnyWong1052/aish/internal/llm/gemini/auth"
+	"github.com/TonnyWong1052/aish/internal/prompt"
+	"github.com/TonnyWong1052/aish/internal/ui"
 )
 
 // GeminiCLIProvider implements the llm.Provider interface for the Gemini CLI.
@@ -84,6 +86,116 @@ func init() {
 	llm.RegisterProvider("gemini-cli", NewProvider)
 }
 
+// ensureProject 於執行期解析/補全專案 ID：
+// 1) 僅讀取 AISH 憑證檔 ~/.config/aish/gemini_oauth_creds.json 的 project_id
+// 2) 若仍無，嘗試本機自動偵測（GCE/GKE Metadata 或 gcloud 目前設定）
+func (p *GeminiCLIProvider) ensureProject(ctx context.Context) error {
+	// 0) 最高優先：環境變數（允許使用者快速覆蓋）
+	if s := strings.TrimSpace(os.Getenv(config.EnvAISHGeminiProject)); s != "" {
+		p.cfg.Project = s
+		if shouldDebug() {
+			fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli project_source=env value=%s\n", s)
+		}
+		// 可選驗證：若無法讀取，仍回退其他策略
+		if canAccessProject(ctx, s) {
+			return nil
+		}
+	}
+
+	// 1) 若已在設定中存在且非占位符，先嘗試此值
+	if s := strings.TrimSpace(p.cfg.Project); s != "" && s != "YOUR_GEMINI_PROJECT_ID" {
+		if canAccessProject(ctx, s) {
+			return nil
+		}
+		if shouldDebug() {
+			fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli project_config_unverified=%s (will try alternatives)\n", s)
+		}
+	}
+
+	// AISH 設定目錄內的憑證檔（若包含 project_id）
+	if pid := readProjectIDFromAishConfig(); pid != "" {
+		p.cfg.Project = pid
+		if shouldDebug() {
+			fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli project_source=aish_creds value=%s\n", pid)
+		}
+		return nil
+	}
+
+	// 3) 使用 OAuth Token 列出專案（避免 gcloud 帳號與 OAuth 帳號不一致）
+	if list, err := auth.SearchProjectsV3(ctx); err == nil && len(list) > 0 {
+		if pid := auth.PickDefaultProject(list); strings.TrimSpace(pid) != "" {
+			p.cfg.Project = pid
+			if shouldDebug() {
+				fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli project_source=crm_v3 value=%s\n", pid)
+			}
+			return nil
+		}
+	}
+
+	// 4) 回退：本機自動偵測（無外部 API）：GCE/GKE Metadata 或 gcloud（需驗證可訪問性）
+	if pid, _ := auth.AutoDetectProjectID(ctx); strings.TrimSpace(pid) != "" {
+		if canAccessProject(ctx, pid) {
+			p.cfg.Project = pid
+			if shouldDebug() {
+				fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli project_source=autodetect value=%s\n", pid)
+			}
+			return nil
+		}
+		// 若本機預設不可訪問，嘗試以 OAuth 專案清單選取一個可用專案
+		if list, err := auth.SearchProjectsV3(ctx); err == nil && len(list) > 0 {
+			pick := auth.PickDefaultProject(list)
+			if strings.TrimSpace(pick) == "" {
+				pick = strings.TrimSpace(list[0].ProjectID)
+			}
+			if canAccessProject(ctx, pick) {
+				p.cfg.Project = pick
+				if shouldDebug() {
+					fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli project_source=crm_v3_after_autodetect value=%s\n", pick)
+				}
+				return nil
+			}
+		}
+	}
+
+	return fmt.Errorf("project ID not found in ~/.config/aish/gemini_oauth_creds.json and auto-detection failed; set it with 'aish config set providers.gemini-cli.project <PROJECT_ID>'")
+}
+
+// canAccessProject 以目前可用 OAuth token 檢查專案是否可存取（存在且有讀權限）
+func canAccessProject(ctx context.Context, pid string) bool {
+	pid = strings.TrimSpace(pid)
+	if pid == "" {
+		return false
+	}
+	if _, err := auth.GetProject(ctx, pid); err == nil {
+		return true
+	}
+	return false
+}
+
+// readProjectIDFromAishConfig 嘗試從 AISH 設定目錄的 gemini_oauth_creds.json 讀取 project_id 欄位。
+func readProjectIDFromAishConfig() string {
+	cfgPath, err := config.GetConfigPath()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Dir(cfgPath)
+	path := filepath.Join(dir, "gemini_oauth_creds.json")
+	b, err := os.ReadFile(path)
+	if err != nil || len(b) == 0 {
+		return ""
+	}
+	m := map[string]any{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return ""
+	}
+	if v, ok := m["project_id"]; ok {
+		if s := getStringFromAny(v); strings.TrimSpace(s) != "" {
+			return s
+		}
+	}
+	return ""
+}
+
 // sanitizeToken normalizes common pasted formats into a raw OAuth token string.
 // Accepts inputs like:
 //   - "ya29.A0..." (raw token)
@@ -116,27 +228,27 @@ func sanitizeToken(s string) string {
 // 3) 已包含 ":generateContent" → 原樣返回
 // 4) 非 URL 基底字串 → 附加預設路徑 "/v1internal:generateContent"
 func buildGenerateContentURL(endpoint string) (string, error) {
-    ep := strings.TrimSpace(endpoint)
-    if ep == "" {
-        return "https://cloudcode-pa.googleapis.com/v1internal:generateContent", nil
-    }
-    if strings.Contains(ep, ":generateContent") {
-        return ep, nil
-    }
-    if strings.Contains(ep, "://") {
-        u, err := neturl.Parse(ep)
-        if err != nil {
-            return "", fmt.Errorf("invalid API endpoint: %w", err)
-        }
-        if u.Path == "" || u.Path == "/" {
-            u.Path = "/v1internal:generateContent"
-        } else {
-            u.Path = strings.TrimRight(u.Path, "/") + ":generateContent"
-        }
-        return u.String(), nil
-    }
-    api := strings.TrimRight(ep, "/")
-    return api + "/v1internal:generateContent", nil
+	ep := strings.TrimSpace(endpoint)
+	if ep == "" {
+		return "https://cloudcode-pa.googleapis.com/v1internal:generateContent", nil
+	}
+	if strings.Contains(ep, ":generateContent") {
+		return ep, nil
+	}
+	if strings.Contains(ep, "://") {
+		u, err := neturl.Parse(ep)
+		if err != nil {
+			return "", fmt.Errorf("invalid API endpoint: %w", err)
+		}
+		if u.Path == "" || u.Path == "/" {
+			u.Path = "/v1internal:generateContent"
+		} else {
+			u.Path = strings.TrimRight(u.Path, "/") + ":generateContent"
+		}
+		return u.String(), nil
+	}
+	api := strings.TrimRight(ep, "/")
+	return api + "/v1internal:generateContent", nil
 }
 
 // buildCloudCodeRequestBody builds the JSON payload to match the user's working sample.
@@ -185,6 +297,10 @@ func buildCloudCodeRequestBody(message, model, project string) map[string]any {
 
 // GetSuggestion implements the llm.Provider interface using HTTP API.
 func (p *GeminiCLIProvider) GetSuggestion(ctx context.Context, capturedContext llm.CapturedContext, lang string) (*llm.Suggestion, error) {
+	// Ensure project is resolved at runtime
+	if err := p.ensureProject(ctx); err != nil {
+		return nil, fmt.Errorf("gemini-cli project resolution failed: %w", err)
+	}
 	// Get the prompt template
 	promptTemplate, err := p.pm.GetPrompt("get_suggestion", mapLanguage(lang))
 	if err != nil {
@@ -289,6 +405,10 @@ func (p *GeminiCLIProvider) GetSuggestion(ctx context.Context, capturedContext l
 
 // GetEnhancedSuggestion implements the llm.Provider interface with enhanced context.
 func (p *GeminiCLIProvider) GetEnhancedSuggestion(ctx context.Context, enhancedCtx llm.EnhancedCapturedContext, lang string) (*llm.Suggestion, error) {
+	// Ensure project is resolved at runtime
+	if err := p.ensureProject(ctx); err != nil {
+		return nil, fmt.Errorf("gemini-cli project resolution failed: %w", err)
+	}
 	// Get the enhanced prompt template
 	promptTemplate, err := p.pm.GetPrompt("get_enhanced_suggestion", mapLanguage(lang))
 	if err != nil {
@@ -384,6 +504,10 @@ func (p *GeminiCLIProvider) GetEnhancedSuggestion(ctx context.Context, enhancedC
 
 // GenerateCommand implements the llm.Provider interface.
 func (p *GeminiCLIProvider) GenerateCommand(ctx context.Context, promptText string, lang string) (string, error) {
+	// Ensure project is resolved at runtime
+	if err := p.ensureProject(ctx); err != nil {
+		return "", fmt.Errorf("gemini-cli project resolution failed: %w", err)
+	}
 	promptTemplate, err := p.pm.GetPrompt("generate_command", mapLanguage(lang))
 	if err != nil {
 		return "", fmt.Errorf("failed to get prompt template: %w", err)
@@ -449,19 +573,89 @@ func (p *GeminiCLIProvider) GenerateCommand(ctx context.Context, promptText stri
 		return strings.TrimSpace(obj.Command), nil
 	}
 
-	// Fallback: previous heuristics
-	generatedCommand := strings.TrimSpace(response)
-	generatedCommand = strings.TrimPrefix(generatedCommand, "`")
-	generatedCommand = strings.TrimSuffix(generatedCommand, "`")
-	generatedCommand = strings.TrimPrefix(generatedCommand, "bash")
-	generatedCommand = strings.TrimSpace(generatedCommand)
-	return generatedCommand, nil
+	// Fallback: extract plausible shell command; if not found, return empty to avoid executing prose
+	if cmd := extractPlausibleCommand(response); cmd != "" {
+		return cmd, nil
+	}
+	return "", fmt.Errorf("no plausible command found in provider response")
+}
+
+// extractPlausibleCommand tries to extract a shell-like command from free-form text.
+// Strategy:
+// 1) Prefer last triple-backtick code block, take its first non-empty line not starting with '#'.
+// 2) Otherwise scan lines and pick the first that looks like a command (regex heuristics).
+// 3) Reject obvious prose (e.g., contains phrases like "I am"/"I cannot answer").
+func extractPlausibleCommand(text string) string {
+	s := strings.TrimSpace(text)
+	if s == "" {
+		return ""
+	}
+	// Reject obvious prose answers
+	lower := strings.ToLower(s)
+	banned := []string{"i am", "i'm", "i cannot", "i can’t", "large language model", "sorry", "cannot answer", "i don't"}
+	for _, b := range banned {
+		if strings.Contains(lower, b) {
+			return ""
+		}
+	}
+	// Prefer fenced code blocks
+	if i := strings.LastIndex(s, "```"); i != -1 {
+		// find the matching opening fence
+		start := strings.LastIndex(s[:i], "```")
+		if start != -1 && start < i {
+			block := s[start+3 : i]
+			for _, line := range strings.Split(block, "\n") {
+				line = strings.TrimSpace(line)
+				if line == "" || strings.HasPrefix(line, "#") {
+					continue
+				}
+				if plausibleCommand(line) {
+					return line
+				}
+			}
+		}
+	}
+	// Scan lines
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if plausibleCommand(line) {
+			return line
+		}
+	}
+	return ""
+}
+
+var cmdStartRe = regexp.MustCompile(`^(?i)\s*(sudo\s+)?([a-z][a-z0-9._-]*|\.|\.\.|\./|/|~)(\s|$)`)
+
+func plausibleCommand(line string) bool {
+	l := strings.TrimSpace(line)
+	if l == "" {
+		return false
+	}
+	if strings.HasPrefix(l, "bash") {
+		l = strings.TrimSpace(strings.TrimPrefix(l, "bash"))
+		if l == "" {
+			return false
+		}
+	}
+	if !cmdStartRe.MatchString(l) {
+		return false
+	}
+	// Extra guard: avoid lines ending with a period that look like sentences
+	if strings.HasSuffix(l, ".") && !strings.ContainsAny(l, "/-'_\"$&|><") {
+		return false
+	}
+	return true
 }
 
 // VerifyConnection implements the llm.Provider interface.
 func (p *GeminiCLIProvider) VerifyConnection(ctx context.Context) ([]string, error) {
-	if p.cfg.Project == "" || p.cfg.Project == "YOUR_GEMINI_PROJECT_ID" {
-		return nil, errors.New("project ID is missing for gemini-cli")
+	// Resolve project at runtime instead of failing early
+	if err := p.ensureProject(ctx); err != nil {
+		return nil, fmt.Errorf("project resolution failed: %w", err)
 	}
 
 	// Try to verify using the HTTP API
@@ -485,10 +679,15 @@ func (p *GeminiCLIProvider) generateContentHTTP(ctx context.Context, message str
 		fmt.Fprintf(os.Stderr, "Warning: token refresh check failed: %v\n", err)
 	}
 
-    targetURL, err := buildGenerateContentURL(p.cfg.APIEndpoint)
-    if err != nil {
-        return "", fmt.Errorf("failed to resolve API endpoint: %w", err)
-    }
+	// Ensure project is resolved
+	if err := p.ensureProject(ctx); err != nil {
+		return "", fmt.Errorf("gemini-cli project resolution failed: %w", err)
+	}
+
+	targetURL, err := buildGenerateContentURL(p.cfg.APIEndpoint)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve API endpoint: %w", err)
+	}
 
 	// Get Bearer token (env override > oauth files)
 	token, err := p.getBearerToken(ctx)
@@ -505,17 +704,17 @@ func (p *GeminiCLIProvider) generateContentHTTP(ctx context.Context, message str
 			return "", 0, "", fmt.Errorf("failed to marshal request: %w", err)
 		}
 
-        req, err := http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewReader(jsonBody))
-        if err != nil {
-            return "", 0, "", fmt.Errorf("failed to create request: %w", err)
-        }
+		req, err := http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewReader(jsonBody))
+		if err != nil {
+			return "", 0, "", fmt.Errorf("failed to create request: %w", err)
+		}
 		req.Header.Set("Authorization", "Bearer "+token)
 		req.Header.Set("Content-Type", "application/json")
-        if shouldDebug() {
-            fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli HTTP url=%s\n", targetURL)
-            fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli HTTP body=%s\n", string(jsonBody))
-            fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli HTTP token=%s\n", maskToken(token))
-        }
+		if shouldDebug() {
+			fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli HTTP url=%s\n", targetURL)
+			fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli HTTP body=%s\n", string(jsonBody))
+			fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli HTTP token=%s\n", maskToken(token))
+		}
 
 		resp, err := p.client.Do(req)
 		if err != nil {
@@ -544,7 +743,7 @@ func (p *GeminiCLIProvider) generateContentHTTP(ctx context.Context, message str
 			if sts != "" {
 				msg = fmt.Sprintf("%s: %s", sts, msg)
 			}
-			return "", resp.StatusCode, string(data), fmt.Errorf(msg)
+			return "", resp.StatusCode, string(data), fmt.Errorf("%s", msg)
 		}
 		// Extract text from response (supports top-level and wrapped under "response")
 		if txt, ok := parseTextFromAPIResponse(response); ok {
@@ -599,10 +798,10 @@ func maskToken(tok string) string {
 // getStringFromAny 將 interface{} 轉成字串（若為非字串則回傳空字串）
 // getStringFromAny converts an interface{} to string; returns empty string for non-strings.
 func getStringFromAny(v any) string {
-    if s, ok := v.(string); ok {
-        return s
-    }
-    return ""
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
 }
 
 // generateContentCURL uses cURL to send requests, format aligned with user-provided examples
@@ -612,10 +811,15 @@ func (p *GeminiCLIProvider) generateContentCURL(ctx context.Context, message str
 		fmt.Fprintf(os.Stderr, "Warning: token refresh check failed: %v\n", err)
 	}
 
-    targetURL, err := buildGenerateContentURL(p.cfg.APIEndpoint)
-    if err != nil {
-        return "", fmt.Errorf("failed to resolve API endpoint: %w", err)
-    }
+	// Ensure project is resolved
+	if err := p.ensureProject(ctx); err != nil {
+		return "", fmt.Errorf("gemini-cli project resolution failed: %w", err)
+	}
+
+	targetURL, err := buildGenerateContentURL(p.cfg.APIEndpoint)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve API endpoint: %w", err)
+	}
 
 	token, err := p.getBearerToken(ctx)
 	if err != nil {
@@ -629,14 +833,14 @@ func (p *GeminiCLIProvider) generateContentCURL(ctx context.Context, message str
 	if _, err := exec.LookPath("curl"); err != nil {
 		return "", fmt.Errorf("curl not found in PATH")
 	}
-    cmd := exec.CommandContext(ctx, "curl",
-        "--silent", "--show-error",
-        "--request", "POST",
-        "--url", targetURL,
-        "--header", "Authorization: Bearer "+token,
-        "--header", "Content-Type: application/json",
-        "--data", string(jb),
-    )
+	cmd := exec.CommandContext(ctx, "curl",
+		"--silent", "--show-error",
+		"--request", "POST",
+		"--url", targetURL,
+		"--header", "Authorization: Bearer "+token,
+		"--header", "Content-Type: application/json",
+		"--data", string(jb),
+	)
 	// Do not set x-goog-user-project header to match user's working sample
 	// SSL verification control: consistent with HTTP client
 	if v := strings.TrimSpace(strings.ToLower(os.Getenv("AISH_GEMINI_SKIP_TLS_VERIFY"))); v == "1" || v == "true" || v == "yes" {
@@ -652,13 +856,13 @@ func (p *GeminiCLIProvider) generateContentCURL(ctx context.Context, message str
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("curl request failed: %v | %s", err, errb.String())
 	}
-    if shouldDebug() {
-        fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli CURL url=%s\n", targetURL)
-        fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli CURL body=%s\n", string(jb))
-        fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli CURL token=%s\n", maskToken(token))
-        if s := errb.String(); strings.TrimSpace(s) != "" {
-            fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli CURL stderr=%s\n", s)
-        }
+	if shouldDebug() {
+		fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli CURL url=%s\n", targetURL)
+		fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli CURL body=%s\n", string(jb))
+		fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli CURL token=%s\n", maskToken(token))
+		if s := errb.String(); strings.TrimSpace(s) != "" {
+			fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli CURL stderr=%s\n", s)
+		}
 	}
 
 	raw := out.Bytes()
@@ -676,7 +880,7 @@ func (p *GeminiCLIProvider) generateContentCURL(ctx context.Context, message str
 		if sts != "" {
 			msg = fmt.Sprintf("%s: %s", sts, msg)
 		}
-		return "", fmt.Errorf(msg)
+		return "", fmt.Errorf("%s", msg)
 	}
 	// Extract plain text response (also supports structure wrapped under "response")
 	if txt, ok := parseTextFromAPIResponse(response); ok {
@@ -861,7 +1065,6 @@ func readTokenFromFile(path string) (string, error) {
 	return "", errors.New("no valid access_token found in file")
 }
 
-
 // promptAndAuthenticate asks the user to choose an authentication method and then authenticates.
 func (p *GeminiCLIProvider) promptAndAuthenticate() (string, error) {
 	fmt.Fprintln(os.Stderr, "No valid OAuth token found for gemini-cli.")
@@ -891,8 +1094,8 @@ func (p *GeminiCLIProvider) promptAndAuthenticate() (string, error) {
 
 // verifyGeminiCLIEndpoint verifies connection to Gemini CLI API
 func (p *GeminiCLIProvider) verifyGeminiCLIEndpoint() error {
-    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-    defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
 
 	// Ensure the token is valid before making a verification call
 	if err := auth.EnsureValidToken(ctx); err != nil {
@@ -900,10 +1103,10 @@ func (p *GeminiCLIProvider) verifyGeminiCLIEndpoint() error {
 		fmt.Fprintf(os.Stderr, "Warning: token refresh check failed during verification: %v\n", err)
 	}
 
-    targetURL, err := buildGenerateContentURL(p.cfg.APIEndpoint)
-    if err != nil {
-        return fmt.Errorf("failed to resolve API endpoint: %w", err)
-    }
+	targetURL, err := buildGenerateContentURL(p.cfg.APIEndpoint)
+	if err != nil {
+		return fmt.Errorf("failed to resolve API endpoint: %w", err)
+	}
 
 	// Get OAuth token
 	token, err := p.getOAuthToken()
@@ -917,19 +1120,19 @@ func (p *GeminiCLIProvider) verifyGeminiCLIEndpoint() error {
 	if model == "" || strings.EqualFold(model, "gemini-pro") {
 		model = "gemini-2.5-flash"
 	}
-    body := map[string]any{
-        "model":   model,
-        "project": p.cfg.Project,
-        "request": map[string]any{
-            "contents": []map[string]any{
-                {
-                    "role":  "user",
-                    "parts": []map[string]string{{"text": "What is your model name"}},
-                },
-            },
-            "tools": []map[string]any{
-                {
-                    "functionDeclarations": []map[string]any{
+	body := map[string]any{
+		"model":   model,
+		"project": p.cfg.Project,
+		"request": map[string]any{
+			"contents": []map[string]any{
+				{
+					"role":  "user",
+					"parts": []map[string]string{{"text": "What is your model name"}},
+				},
+			},
+			"tools": []map[string]any{
+				{
+					"functionDeclarations": []map[string]any{
 						{
 							"name":        "get_current_weather",
 							"description": "Get the current weather in a given location",
@@ -949,20 +1152,20 @@ func (p *GeminiCLIProvider) verifyGeminiCLIEndpoint() error {
 							},
 						},
 					},
-                },
-            },
-        },
-    }
+				},
+			},
+		},
+	}
 
 	jsonBody, err := json.Marshal(body)
 	if err != nil {
 		return err
 	}
 
-    req, err := http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewReader(jsonBody))
-    if err != nil {
-        return err
-    }
+	req, err := http.NewRequestWithContext(ctx, "POST", targetURL, bytes.NewReader(jsonBody))
+	if err != nil {
+		return err
+	}
 
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")

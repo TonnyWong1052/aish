@@ -339,8 +339,8 @@ grep -n "aish" ~/.bashrc ~/.bash_profile
 # For zsh users
 grep -n "aish" ~/.zshrc
 
-# Reinstall hook if missing
-aish hook install
+# Reinstall hook if missing (runs hook installer)
+aish init
 ```
 
 2. **Reload shell configuration:**

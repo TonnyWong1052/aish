@@ -2,12 +2,12 @@ package ui
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"atomicgo.dev/cursor"
 	"atomicgo.dev/keyboard"
 	"atomicgo.dev/keyboard/keys"
-	"github.com/pterm/pterm"
 )
 
 // MultiSelectNoHelp renders a simple multiselect without the default PTerm help line.
@@ -38,52 +38,51 @@ func MultiSelectNoHelp(prompt string, options []string, defaultOptions []string)
 		maxHeight = len(options)
 	}
 
-	// Render function returns the full content string for the area
-	render := func() string {
-		var b strings.Builder
-		if prompt != "" {
-			b.WriteString(prompt)
-			if !strings.HasSuffix(prompt, "\n") {
-				b.WriteString("\n")
-			}
+	// Print prompt once
+	if prompt != "" {
+		fmt.Fprint(os.Stdout, prompt)
+		if !strings.HasSuffix(prompt, "\n") {
+			fmt.Fprintln(os.Stdout)
 		}
+	}
 
-		// Clamp window
+	// Calculate visible window
+	updateWindow := func() {
 		if selectedIdx < top {
 			top = selectedIdx
 		}
 		if selectedIdx >= top+maxHeight {
 			top = selectedIdx - maxHeight + 1
 		}
-		end := top + maxHeight
-		if end > len(options) {
-			end = len(options)
-		}
-
-		for i := top; i < end; i++ {
-			checkmark := fmt.Sprintf("[%s]", pterm.ThemeDefault.Checkmark.Unchecked)
-			if selected[i] {
-				checkmark = fmt.Sprintf("[%s]", pterm.ThemeDefault.Checkmark.Checked)
-			}
-			if i == selectedIdx {
-				b.WriteString(pterm.Sprintf("%s %s %s\n", pterm.ThemeDefault.SecondaryStyle.Sprint(">"), checkmark, options[i]))
-			} else {
-				b.WriteString(pterm.Sprintf("  %s %s\n", checkmark, options[i]))
-			}
-		}
-
-		// Intentionally no extra help line here
-		return b.String()
 	}
 
-	area, err := pterm.DefaultArea.Start(render())
-	if err != nil {
-		return nil, err
+	// Render a single line
+	renderLine := func(i int) string {
+		checkmark := "[x]"  // 未選中顯示 [x]
+		if selected[i] {
+			checkmark = "[o]"  // 選中顯示 [o]
+		}
+		prefix := "  "
+		if i == selectedIdx {
+			prefix = "> "
+		}
+		return fmt.Sprintf("%s%s %s", prefix, checkmark, options[i])
 	}
-	defer area.Stop()
+
+	// Initial render: print all visible lines
+	updateWindow()
+	end := top + maxHeight
+	if end > len(options) {
+		end = len(options)
+	}
+	for i := top; i < end; i++ {
+		fmt.Fprintln(os.Stdout, renderLine(i))
+	}
 
 	cursor.Hide()
 	defer cursor.Show()
+
+	lineCount := end - top
 
 	if err := keyboard.Listen(func(k keys.Key) (bool, error) {
 		switch k.Code {
@@ -95,17 +94,14 @@ func MultiSelectNoHelp(prompt string, options []string, defaultOptions []string)
 			} else {
 				selectedIdx = len(options) - 1
 			}
-			area.Update(render())
 		case keys.Down, keys.CtrlN:
 			if selectedIdx < len(options)-1 {
 				selectedIdx++
 			} else {
 				selectedIdx = 0
 			}
-			area.Update(render())
 		case keys.Space:
 			selected[selectedIdx] = !selected[selectedIdx]
-			area.Update(render())
 		case keys.RuneKey:
 			// Letter-based actions
 			switch k.String() {
@@ -121,17 +117,33 @@ func MultiSelectNoHelp(prompt string, options []string, defaultOptions []string)
 				for i := range selected {
 					selected[i] = !allSelected
 				}
-				area.Update(render())
 			case "i":
 				// Invert selection
 				for i := range selected {
 					selected[i] = !selected[i]
 				}
-				area.Update(render())
 			}
 		case keys.Enter:
 			return true, nil
 		}
+
+    // Redraw: always repaint the visible window to keep alignment stable
+    updateWindow()
+    end := top + maxHeight
+    if end > len(options) {
+        end = len(options)
+    }
+
+    // Move to the top of the block and redraw all lines from column 0
+    cursor.Up(lineCount)
+    cursor.StartOfLine()
+    for i := top; i < end; i++ {
+        // 清除本行並重畫（逐行輸出，保證左對齊且避免殘影）
+        fmt.Fprint(os.Stdout, "\r\033[K")
+        fmt.Fprintln(os.Stdout, renderLine(i))
+    }
+    lineCount = end - top
+
 		return false, nil
 	}); err != nil {
 		return nil, err

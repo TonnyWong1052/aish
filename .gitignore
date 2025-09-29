@@ -12,6 +12,8 @@
 
 # Go module/package caches
 .gocache/
+.gomodcache/
+.gopath/
 vendor/
 
 # Project binaries
@@ -19,25 +21,47 @@ bin/
 cmd/aish/aish
 tools/gemini/token-refresher/token-refresher
 
+# Root binary (local build)
+aish
+
 # Web bundles
 web-bundles/
 
 # Editors/IDEs
 .idea/
 .vscode/
+.fleet/
 
-# Hidden directories (user request)
-.*/
-# Allow CI workflows
-!.github/
-!.github/**
+# Local tool/workspace directories
+.serena/
+.claude/
+.bmad-core/
 
 # Log files
 *.log
+nohup.out
 
 # Swap files
 *.swp
+*.swo
 
+# Build outputs
+dist/
+build/
 
-AGENTS.md
-.kilocodemodes
+# Coverage & profiling
+coverage.out
+*.coverprofile
+*.prof
+profile.out
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Temp files
+*.tmp
+*.bak
+tmp/
+tmp/**

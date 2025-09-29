@@ -26,6 +26,43 @@ archives:
     format: tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
+# nfpm packages - for deb/rpm
+nfpms:
+  - id: aish-nfpms
+    builds:
+      - aish
+    formats:
+      - deb
+      - rpm
+    vendor: "TonnyWong1052"
+    homepage: "https://github.com/TonnyWong1052/aish"
+    maintainer: "TomLeung <leungchushing1@gmail.com>"
+    description: "AI shell helper."
+    license: "MIT"
+    bindir: /usr/local/bin
+    scripts:
+      postinstall: packaging/deb/postinstall.sh
+      preremove: packaging/deb/preremove.sh
+    contents:
+      - src: packaging/deb/README.Debian
+        dst: /usr/share/doc/aish/README.Debian
+        file_info:
+          mode: 0644
+    recommends:
+      - bash
+      - zsh
+      - fish
+
+# Custom publishers for GitHub Pages APT repository
+publishers:
+  - name: "upload-to-apt-repo"
+    ids:
+      - aish-nfpms
+    cmd: |
+      # This will be handled by a separate GitHub Action
+      # that uploads the .deb files to the apt repository
+      echo "Packages built successfully"
+
 changelog:
   use: git
   filters:

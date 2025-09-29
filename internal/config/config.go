@@ -54,6 +54,10 @@ type UserPreferences struct {
 	Logging            LoggingConfig `json:"logging"`
 	Cache              CacheConfig   `json:"cache"`
 	MaxHistorySize     int           `json:"max_history_size"`
+
+	// Core AISH settings
+	ShowTips      bool `json:"show_tips"`      // Display helpful tips during usage
+	VerboseOutput bool `json:"verbose_output"` // Show detailed diagnostic information
 }
 
 // Config is the main configuration structure for the application.
@@ -132,6 +136,10 @@ func newDefaultConfig() *Config {
 				MaxSimilarityCache:  DefaultMaxSimilarityCache,
 			},
 			MaxHistorySize: DefaultMaxHistorySize,
+
+			// Core AISH settings defaults
+			ShowTips:      true,
+			VerboseOutput: false,
 		},
 	}
 }

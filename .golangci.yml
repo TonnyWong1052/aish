@@ -1,34 +1,32 @@
-version: "2"
-
-# 输出配置：统一使用 text，开启颜色，隐藏 linter 名称以便于阅读
+# 输出配置：隱藏 linter 名稱、穩定排序、逐行去重
 output:
-  formats:
-    text:
-      path: stdout
-      colors: true
-      print-linter-name: false
+  print-issued-lines: true
+  print-linter-name: false
+  sort-results: true
+  uniq-by-line: false
 
 # 运行参数：适度超时，避免下载依赖（只读模块模式）
 run:
   timeout: 3m
   modules-download-mode: readonly
 
-# 格式化器：仅聚焦代码风格与导入；不开启大量静态分析以避免噪声
-formatters:
+# 啟用的 linters（聚焦代碼風格與 import 整理）
+linters:
   enable:
     - gofmt
     - goimports
     - gofumpt
     - gci
-  settings:
-    # gofmt 的 -s 简化规则可能带来非预期重写，先默认关闭；如需更严格可改为 true
-    gofmt:
-      simplify: false
 
-    # gci 可根据需要补充本地模块前缀进行 import 分组
-    # 例如：
-    gci:
-      sections:
-        - standard
-        - default
-        - prefix(github.com/TonnyWong1052/aish)
+# 每個 linter 的細節設定
+linters-settings:
+  # gofmt 的 -s 簡化可能造成非預期重寫，預設關閉；需要更嚴格可設 true
+  gofmt:
+    simplify: false
+
+  # gci 分組：標準庫、預設（第三方）、本地模組前綴
+  gci:
+    sections:
+      - standard
+      - default
+      - prefix(github.com/TonnyWong1052/aish)

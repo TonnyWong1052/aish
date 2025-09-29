@@ -59,6 +59,19 @@ func AllErrorTypes() []ErrorType {
 	return result
 }
 
+// DisplayName returns a human-readable name for the error type
+func (e ErrorType) DisplayName() string {
+	// Insert spaces before capital letters
+	var result strings.Builder
+	for i, r := range string(e) {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			result.WriteRune(' ')
+		}
+		result.WriteRune(r)
+	}
+	return result.String()
+}
+
 // AllErrorTypeStrings exposes supported error categories in string form.
 func AllErrorTypeStrings() []string {
 	result := make([]string, len(allErrorTypes))

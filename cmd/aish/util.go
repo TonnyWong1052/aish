@@ -12,6 +12,6 @@ func executeCommand(command string) {
 	cmd := exec.Command("sh", "-c", command)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	// Do not pass stdin to avoid residual input being interpreted as new commands
 	_ = cmd.Run()
 }

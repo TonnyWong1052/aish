@@ -4,7 +4,7 @@
 
 一个功能强大的命令行工具，集成 Google Gemini AI，提供智能终端协助。AISH 自动捕获命令错误，通过 AI 分析并提供智能建议和修正。
 
-> 最新稳定版本：**v0.0.1**
+> 最新稳定版本：**v0.0.2**
 
 ![AISH 演示](./demo/demo.gif)
 
@@ -128,7 +128,7 @@ Shell Hook 自动：
   export AISH_HOOK_DISABLED=1
   ```
 
-执行 `aish hook init` 时也会提供「Skip Rules」交互设置，会把你的偏好写入 `~/.config/aish/env.sh`（POSIX）与 `env.ps1`（PowerShell），hook 启动时自动加载。
+执行 `aish init` 时也会提供相关交互设置，并将偏好写入 `~/.config/aish/` 下的环境配置（POSIX 与 PowerShell），hook 启动时自动加载。
 
 ### Hook 安装
 

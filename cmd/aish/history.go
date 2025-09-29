@@ -87,7 +87,9 @@ func listHistoryAndAnalyze(cmd *cobra.Command, args []string) {
 	}
 
 	presenter := ui.NewPresenter()
-	presenter.ShowLoading("Analyzing selected error...")
+	if err := presenter.ShowLoadingWithTimer("Analyzing selected error"); err != nil {
+		pterm.Warning.Printfln("Warning: Could not start loading animation: %v", err)
+	}
 
 	suggestion, err := provider.GetSuggestion(context.Background(), llm.CapturedContext{
 		Command:  selectedEntry.Command,
@@ -123,7 +125,9 @@ func listHistoryAndAnalyze(cmd *cobra.Command, args []string) {
 			executeCommand(suggestion.CorrectedCommand)
 			break
 		} else {
-			presenter.ShowLoading("Getting new suggestion...")
+			if err := presenter.ShowLoadingWithTimer("Getting new suggestion"); err != nil {
+				pterm.Warning.Printfln("Warning: Could not start loading animation: %v", err)
+			}
 			suggestion, err = provider.GetSuggestion(context.Background(), llm.CapturedContext{
 				Command: userInput,
 			}, cfg.UserPreferences.Language)

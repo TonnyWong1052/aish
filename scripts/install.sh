@@ -3,9 +3,12 @@
 # This script installs the 'aish' CLI.
 
 # --- Configuration ---
-# Destination directory for the binary.
-# Default is '$HOME/bin', a common practice for user-installed executables.
-INSTALL_DIR="$HOME/bin"
+# Destination directory preference order (we will try in this order):
+# 1) $HOME/bin (user directory, no sudo required)
+# 2) $HOME/.local/bin (XDG standard, no sudo required)
+# 3) /usr/local/bin (system-wide, may require sudo)
+# 4) /opt/homebrew/bin (Homebrew on Apple Silicon, may require sudo)
+INSTALL_DIR=""
 # Name of the binary to install.
 BINARY_NAME="aish"
 # Source path of the binary. Prefer ./bin/aish if present.
@@ -40,7 +43,7 @@ for arg in "$@"; do
       ;;
     -h|--help)
       echo "Usage: $0 [--with-init]"
-      echo "  --with-init    Run 'aish init' after install (with fallback)"
+      echo "  --with-init    Run 'aish init' after install"
       exit 0
       ;;
     *)
@@ -64,20 +67,81 @@ if [ ! -f "$BINARY_SOURCE" ]; then
   print_success "Binary built successfully."
 fi
 
-# 2. Create the installation directory if it doesn't exist
-if [ ! -d "$INSTALL_DIR" ]; then
-  print_info "Creating installation directory at '$INSTALL_DIR'..."
-  mkdir -p "$INSTALL_DIR"
+# 2. Copy the binary to a preferred installation directory
+INSTALLED_TO=""
+USED_SUDO=false
+
+try_install() {
+  local target_dir="$1"
+  local require_sudo="$2"  # "true" or "false"
+
+  if [ -z "$target_dir" ]; then
+    return 1
+  fi
+
+  print_info "Attempting to install '$BINARY_NAME' to '$target_dir'..."
+
+  # Create directory if needed (for user directories)
+  if [[ "$target_dir" == "$HOME"* ]]; then
+    mkdir -p "$target_dir" 2>/dev/null || true
+  fi
+
+  # Try direct copy first
+  if cp "$BINARY_SOURCE" "$target_dir/" 2>/dev/null; then
+    INSTALLED_TO="$target_dir"
+    return 0
+  fi
+
+  # Only try sudo for system directories if explicitly allowed
+  if [ "$require_sudo" = "true" ] && command -v sudo >/dev/null 2>&1; then
+    print_warning "This location requires administrator privileges."
+    print_info "You can cancel (Ctrl+C) to avoid using sudo."
+    if sudo cp "$BINARY_SOURCE" "$target_dir/" 2>/dev/null; then
+      INSTALLED_TO="$target_dir"
+      USED_SUDO=true
+      return 0
+    fi
+  fi
+
+  return 1
+}
+
+# Try user directories first (no sudo needed)
+for candidate in "$HOME/bin" "$HOME/.local/bin"; do
+  if try_install "$candidate" "false"; then
+    INSTALL_DIR="$candidate"
+    break
+  fi
+done
+
+# If user directories failed, optionally try system directories
+if [ -z "$INSTALLED_TO" ]; then
+  print_warning "Could not install to user directories."
+  print_info "Would you like to try system directories (requires sudo)?"
+
+  read -r -p "Try system directories? [y/N]: " response
+  if [[ "$response" =~ ^[Yy]$ ]]; then
+    for candidate in "/usr/local/bin" "/opt/homebrew/bin"; do
+      if try_install "$candidate" "true"; then
+        INSTALL_DIR="$candidate"
+        break
+      fi
+    done
+  fi
 fi
 
-# 3. Copy the binary to the installation directory
-print_info "Installing '$BINARY_NAME' from '$BINARY_SOURCE' to '$INSTALL_DIR'..."
-cp "$BINARY_SOURCE" "$INSTALL_DIR/"
-if [ $? -ne 0 ]; then
-  print_warning "Failed to copy binary. You might need to run with sudo, or check permissions for '$INSTALL_DIR'."
+if [ -z "$INSTALLED_TO" ]; then
+  print_warning "Failed to install binary to any location."
+  echo "Tried: $HOME/bin, $HOME/.local/bin, and optionally /usr/local/bin, /opt/homebrew/bin"
+  echo "You can manually copy './bin/$BINARY_NAME' to a directory in your PATH."
   exit 1
 fi
-print_success "Binary installed successfully."
+
+if [ "$USED_SUDO" = "true" ]; then
+  print_success "Binary installed to: $INSTALLED_TO (with sudo)"
+else
+  print_success "Binary installed to: $INSTALLED_TO (no sudo required)"
+fi
 
 # 4. Check if the installation directory is in the PATH
 if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]]; then
@@ -114,13 +178,11 @@ fi
 # 5. 視參數決定是否執行 init
 if [ "$RUN_INIT" -eq 1 ]; then
   print_info "Running '$BINARY_NAME init' as requested (--with-init)..."
-  "$INSTALL_DIR/$BINARY_NAME" init
-  if [ $? -ne 0 ]; then
-    print_warning "Init command failed. Falling back to 'hook install' and 'config'."
-    "$INSTALL_DIR/$BINARY_NAME" hook install || true
-    "$INSTALL_DIR/$BINARY_NAME" config || true
+  if "$INSTALL_DIR/$BINARY_NAME" init; then
+    print_success "Init completed successfully."
+  else
+    print_warning "Init command failed. Please run 'aish init' manually later."
   fi
-  print_success "Init/config steps executed."
 else
   print_info "Skipping auto-run of 'aish init' during install."
   print_info "You can manually run 'aish init' later to install hooks and configure provider."
@@ -130,7 +192,7 @@ fi
 echo -e "\n--- ${COLOR_GREEN}Installation Complete!${COLOR_NC} ---"
 print_info "Next steps:"
 print_info "1. ${COLOR_YELLOW}Restart your terminal${COLOR_NC} or source your shell config file (e.g., 'source ~/.zshrc')."
-print_info "2. Optionally run '${COLOR_YELLOW}aish init${COLOR_NC}' to install the shell hook and configure provider, or run '${COLOR_YELLOW}aish hook install${COLOR_NC}' and '${COLOR_YELLOW}aish config${COLOR_NC}' separately."
+print_info "2. Optionally run '${COLOR_YELLOW}aish init${COLOR_NC}' to install the shell hook and configure provider. You can adjust settings later with '${COLOR_YELLOW}aish config${COLOR_NC}'."
 echo -e "Enjoy using aish!"
 
 exit 0

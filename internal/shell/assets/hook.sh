@@ -14,6 +14,11 @@ if [ -f "$AISH_STATE_DIR/env.sh" ]; then
     . "$AISH_STATE_DIR/env.sh" >/dev/null 2>&1 || true
 fi
 
+# 預設：跳過所有非系統路徑的使用者安裝命令（可用 AISH_SKIP_ALL_USER_COMMANDS=0 覆寫）
+if [ -z "${AISH_SKIP_ALL_USER_COMMANDS+x}" ]; then
+    AISH_SKIP_ALL_USER_COMMANDS="1"
+fi
+
 # Sensitive information masking: replace common sensitive parameter values in commands with ***REDACTED***
 __aish_sanitize_cmd() {
     local _c="$1"
@@ -23,6 +28,70 @@ __aish_sanitize_cmd() {
     # Environment variable form FOO_TOKEN=VALUE or ...SECRET...=VALUE
     _c=$(printf "%s" "$_c" | sed -E "s/([A-Za-z_][A-Za-z0-9_]*((SECRET)|(TOKEN)|(PASSWORD)|(API[_-]?KEY)|(ACCESS[_-]?KEY)|(BEARER))[A-Za-z0-9_]*)=([^[:space:]]+)/\\1=***REDACTED***/g")
     echo "$_c"
+}
+
+# Animation function to show loading spinner with elapsed seconds in background.
+# Runs a lightweight background loop that updates a single line on /dev/tty.
+# zsh uses '&!' to start already-disowned jobs; bash uses '&' then 'disown %%'.
+__aish_show_loading_animation() {
+    local message="${1:-Generating command...}"
+    local start_ts
+    start_ts=$(date +%s 2>/dev/null || printf '%s' 0)
+    # Frames for the spinner animation
+    local frames=("▁" "▃" "▄" "▅" "▆" "▇" "▆" "▅" "▄" "▃")
+
+    if [ -n "$ZSH_VERSION" ]; then
+        (
+            setopt localoptions nomonitor 2>/dev/null || true
+            local i=0 now elapsed frame
+            while :; do
+                now=$(date +%s 2>/dev/null || printf '%s' 0)
+                elapsed=$(( now - start_ts ))
+                frame=${frames[$(( i % ${#frames[@]} ))]}
+                if [ -w /dev/tty ]; then
+                    printf "\r\033[K %s %s (%ss)" "$frame" "$message" "$elapsed" > /dev/tty
+                else
+                    printf "\r\033[K %s %s (%ss)" "$frame" "$message" "$elapsed"
+                fi
+                i=$(( (i + 1) % ${#frames[@]} ))
+                sleep 0.1
+            done
+        ) >/dev/null 2>&1 &!
+        AISH_ANIMATION_PID=$!
+    else
+        (
+            set +m 2>/dev/null || true
+            local i=0 now elapsed frame
+            while :; do
+                now=$(date +%s 2>/dev/null || printf '%s' 0)
+                elapsed=$(( now - start_ts ))
+                frame=${frames[$(( i % ${#frames[@]} ))]}
+                if [ -w /dev/tty ]; then
+                    printf "\r\033[K %s %s (%ss)" "$frame" "$message" "$elapsed" > /dev/tty
+                else
+                    printf "\r\033[K %s %s (%ss)" "$frame" "$message" "$elapsed"
+                fi
+                i=$(( (i + 1) % ${#frames[@]} ))
+                sleep 0.1
+            done
+        ) >/dev/null 2>&1 &
+        AISH_ANIMATION_PID=$!
+        # Remove from job table immediately to avoid job-control messages
+        disown %% 2>/dev/null || true
+    fi
+}
+
+# Stop the loading animation and clear the line
+__aish_stop_loading_animation() {
+    if [ -n "$AISH_ANIMATION_PID" ]; then
+        { kill "$AISH_ANIMATION_PID" 2>/dev/null && wait "$AISH_ANIMATION_PID" 2>/dev/null; } >/dev/null 2>&1
+        AISH_ANIMATION_PID=""
+    fi
+    if [ -w /dev/tty ]; then
+        printf "\r\033[K" > /dev/tty
+    else
+        printf "\r\033[K"
+    fi
 }
 
 # Common error keywords for pre-filtering on hook side to reduce invalid triggers
@@ -97,6 +166,10 @@ __aish_should_skip_cmd() {
         # System directories whitelist (colon-separated)
         local _wl="${AISH_SYSTEM_DIR_WHITELIST:-/bin:/usr/bin:/sbin:/usr/sbin:/usr/libexec:/System/Library:/lib:/usr/lib}"
         local _is_system=1
+        # 在 zsh 下啟用 shwordsplit，使 IFS 分割生效；在 bash 下無害
+        if [ -n "$ZSH_VERSION" ]; then
+            setopt localoptions shwordsplit 2>/dev/null || true
+        fi
         local _oldIFS="$IFS"; IFS=:
         for d in $_wl; do
             case "$_resolved" in
@@ -121,7 +194,13 @@ if [ "${AISH_HOOK_DISABLED:-0}" != "1" ]; then
 
         _aish_preexec() {
             local cmd="$1"
-            __aish_should_skip_cmd "$cmd" && return
+            # 關閉當前函式範圍的作業控制，避免在管線/程序替換產生 tee 背景程序時顯示如 [2] 16188
+            setopt localoptions nomonitor 2>/dev/null || true
+            # 若屬於需跳過的指令，清空 last_command 並直接返回，避免 postcmd 以舊值誤觸發
+            if __aish_should_skip_cmd "$cmd"; then
+                : > "$AISH_LAST_CMD_FILE"
+                return
+            fi
             # Allow per-invocation bypass
             if [ -n "$AISH_CAPTURE_OFF" ]; then
                 return
@@ -139,14 +218,19 @@ if [ "${AISH_HOOK_DISABLED:-0}" != "1" ]; then
 
         _aish_precmd() {
             local exit_code=$?
+            local _had_capture=0
+            # 同步關閉作業控制訊息，避免在 Ctrl+C 後殘留背景工作提示
+            setopt localoptions nomonitor 2>/dev/null || true
             if [ "$__aish_capture_on" = "1" ]; then
                 # Restore FD
                 exec 1>&4 4>&- 2>&5 5>&-
                 __aish_capture_on=0
+                _had_capture=1
             fi
             local last_command
             last_command=$(cat "$AISH_LAST_CMD_FILE" 2>/dev/null)
-            if [ $exit_code -ne 0 ] && [ -n "$last_command" ] && command -v aish >/dev/null 2>&1; then
+            # 僅在本次指令確實啟用過捕捉時，才嘗試觸發 aish capture，避免 skip 指令誤觸發
+            if [ $_had_capture -eq 1 ] && [ $exit_code -ne 0 ] && [ -n "$last_command" ] && command -v aish >/dev/null 2>&1; then
                 __aish_should_trigger "$exit_code" || return $exit_code
                 __aish_should_skip_cmd "$last_command" && return
                 AISH_STDOUT_FILE="$AISH_STDOUT_FILE" AISH_STDERR_FILE="$AISH_STDERR_FILE" \
@@ -172,6 +256,11 @@ if [ "${AISH_HOOK_DISABLED:-0}" != "1" ]; then
             if [ -n "$AISH_CAPTURE_OFF" ]; then
                 return
             fi
+            # 若屬於需跳過的指令，清空 last_command 並直接返回，避免 postcmd 以舊值誤觸發
+            if __aish_should_skip_cmd "$BASH_COMMAND"; then
+                : > "$AISH_LAST_CMD_FILE"
+                return
+            fi
             if [ "$__aish_capture_on" = "1" ]; then
                 return
             fi
@@ -187,13 +276,16 @@ if [ "${AISH_HOOK_DISABLED:-0}" != "1" ]; then
 
         _aish_postcmd() {
             local exit_code=$?
+            local _had_capture=0
             if [ "$__aish_capture_on" = "1" ]; then
                 exec 1>&4 4>&- 2>&5 5>&-
                 __aish_capture_on=0
+                _had_capture=1
             fi
             local last_command
             last_command=$(cat "$AISH_LAST_CMD_FILE" 2>/dev/null)
-            if [ $exit_code -ne 0 ] && [ -n "$last_command" ] && command -v aish >/dev/null 2>&1; then
+            # 僅在本次指令確實啟用過捕捉時，才嘗試觸發 aish capture，避免 skip 指令誤觸發
+            if [ $_had_capture -eq 1 ] && [ $exit_code -ne 0 ] && [ -n "$last_command" ] && command -v aish >/dev/null 2>&1; then
                 __aish_should_trigger "$exit_code" || return $exit_code
                 __aish_should_skip_cmd "$last_command" && return
                 AISH_STDOUT_FILE="$AISH_STDOUT_FILE" AISH_STDERR_FILE="$AISH_STDERR_FILE" \
