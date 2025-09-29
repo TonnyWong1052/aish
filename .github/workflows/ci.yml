@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 取出程式碼
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 取出程式碼
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -75,7 +75,7 @@ jobs:
     needs: [lint, fmt_vet]
     steps:
       - name: 取出程式碼
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 安裝 Go
         uses: actions/setup-go@v5
@@ -127,7 +127,7 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       - name: 取出程式碼
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 安裝 Go
         uses: actions/setup-go@v5
