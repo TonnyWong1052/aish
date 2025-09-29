@@ -30,7 +30,11 @@ jobs:
           version: latest
           args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Use a Personal Access Token with repo access to both
+          # TonnyWong1052/aish and TonnyWong1052/homebrew-aish so GoReleaser
+          # can publish the release and push Homebrew tap updates.
+          # Fallbacks to the default GITHUB_TOKEN if not set.
+          GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN || secrets.GITHUB_TOKEN }}
 
       - name: Get DEB file name
         id: get-deb
