@@ -27,7 +27,7 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.x'
+          go-version: '1.24.x'
           cache: true
 
       - name: 顯示 Go 版本
@@ -53,7 +53,7 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.x'
+          go-version: '1.24.x'
           cache: true
 
       - name: 檢查 gofmt（必須零差異）
@@ -80,7 +80,7 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.x'
+          go-version: '1.24.x'
           cache: true
 
       - name: 下載相依
@@ -132,7 +132,7 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.x'
+          go-version: '1.24.x'
           cache: true
 
       - name: 建置 CLI
