@@ -2,8 +2,6 @@
 output:
   print-issued-lines: true
   print-linter-name: false
-  sort-results: true
-  uniq-by-line: false
 
 # 运行参数：适度超时，避免下载依赖（只读模块模式）
 run:
