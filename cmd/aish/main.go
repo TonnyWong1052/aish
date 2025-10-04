@@ -39,6 +39,9 @@ Use 'aish -a "your question"' to get a plain-text AI answer (no command suggesti
   aish ask "list files sorted by size"`,
     SilenceUsage:  true,  // avoid printing usage on errors we already handle
     SilenceErrors: true,  // let our UI/error handler own error messages
+    CompletionOptions: cobra.CompletionOptions{
+        DisableDefaultCmd: true, // Disable auto-generated completion command
+    },
     Run: func(cmd *cobra.Command, args []string) {
         if flagAnswer != "" { // 新增：一般問答模式（純文字回答，不輸出建議指令）
             runAnswerLogic(flagAnswer)
@@ -523,7 +526,7 @@ func init() {
 	// Make available commands display in the order they were added, ensuring init is first
 	cobra.EnableCommandSorting = false
 	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(askCmd)
+	// rootCmd.AddCommand(askCmd)
 	rootCmd.AddCommand(historyCmd)
 	rootCmd.AddCommand(configCmd)
 	rootCmd.AddCommand(versionCmd)

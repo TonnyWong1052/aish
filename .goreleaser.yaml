@@ -21,15 +21,16 @@ builds:
 
 archives:
   - id: aish-archive
-    builds:
+    ids:
       - aish
-    format: tar.gz
+    formats:
+      - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
 
 # nfpm packages - for deb/rpm
 nfpms:
   - id: aish-nfpms
-    builds:
+    ids:
       - aish
     formats:
       - deb
@@ -78,21 +79,24 @@ release:
   draft: false
   prerelease: false
 
-brews:
+homebrew_casks:
   - name: aish
     repository:
       owner: TonnyWong1052
       name: homebrew-aish
       branch: main
-    folder: Formula
+    directory: Casks
     commit_author:
       name: aish-bot
       email: releases@aish.local
     homepage: https://github.com/TonnyWong1052/aish
     description: AI shell helper
     license: MIT
-    test: |
-      assert_match "aish v{{.Version}}", shell_output("#{bin}/aish --version")
-    dependencies:
-      - name: go
-        type: build
+    url:
+      verified: github.com/TonnyWong1052/aish
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/aish"]
+          end

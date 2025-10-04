@@ -17,7 +17,7 @@ This project is **AISH** (AI Shell), a Go-based CLI tool for intelligent termina
 
 ## Coding & Documentation Conventions
 - **Comments**: In-code comments must be in English. PRs/docs may use Chinese.
-- **Import Order**: Use `gci` order: standard, default, then internal (`prefix(github.com/TonnyWong1052/aish)`).
+- **Import Order**: Use `gci` order: standard, default, then internal (`prefix(powerful-cli)`).
 - **Linters**: Only formatting linters (`gofmt`, `gofumpt`, `goimports`, `gci`) are enforced. No deep static analysis.
 - **State**: All persistent and temp state is in `~/.config/aish/`.
 
