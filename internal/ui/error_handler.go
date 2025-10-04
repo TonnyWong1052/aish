@@ -11,13 +11,13 @@ import (
 type ErrorType string
 
 const (
-	ConfigurationError ErrorType = "configuration"
-	NetworkError       ErrorType = "network"
+	ConfigurationError  ErrorType = "configuration"
+	NetworkError        ErrorType = "network"
 	AuthenticationError ErrorType = "authentication"
-	ProviderError      ErrorType = "provider"
-	ValidationError    ErrorType = "validation"
-	SystemError        ErrorType = "system"
-	UserError          ErrorType = "user"
+	ProviderError       ErrorType = "provider"
+	ValidationError     ErrorType = "validation"
+	SystemError         ErrorType = "system"
+	UserError           ErrorType = "user"
 )
 
 // UserFriendlyError represents an error with enhanced user guidance

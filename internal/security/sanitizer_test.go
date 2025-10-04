@@ -157,7 +157,6 @@ func TestSanitize_NoSensitiveData(t *testing.T) {
 	}
 }
 
-
 func TestSanitize_MultiplePatterns(t *testing.T) {
 	sanitizer := NewSensitiveDataSanitizer()
 

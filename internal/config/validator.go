@@ -126,9 +126,9 @@ func (c *Config) Validate() error {
 	// Validate user preferences
 	validator.validateUserPreferences(c)
 
-    if validator.HasErrors() {
-        return aerrors.WrapError(validator.GetErrors(), aerrors.ErrConfigValidation, "configuration validation failed")
-    }
+	if validator.HasErrors() {
+		return aerrors.WrapError(validator.GetErrors(), aerrors.ErrConfigValidation, "configuration validation failed")
+	}
 
 	return nil
 }
@@ -670,8 +670,8 @@ func (c *Config) ValidateAndFix() ([]string, error) {
 
 	// 在修復後進行基本驗證（不包括警告，只檢查致命錯誤）
 	validator := NewValidator()
-	validator.validateBasicConfigForInit(c)  // Use lenient validation for init
-	validator.validateProvidersForInit(c)    // Use lenient validation for init
+	validator.validateBasicConfigForInit(c) // Use lenient validation for init
+	validator.validateProvidersForInit(c)   // Use lenient validation for init
 
 	// 只檢查嚴重錯誤
 	for _, validationErr := range validator.GetErrors() {

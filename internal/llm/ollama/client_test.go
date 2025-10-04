@@ -164,37 +164,37 @@ func TestMapLanguage(t *testing.T) {
 
 func TestParseSuggestionResponse(t *testing.T) {
 	tests := []struct {
-		name             string
-		response         string
-		wantExplanation  string
-		wantCommand      string
+		name            string
+		response        string
+		wantExplanation string
+		wantCommand     string
 	}{
 		{
 			name: "valid response with explanation and command",
 			response: `Explanation: The ls command lists files
 Command: ls -la`,
-			wantExplanation:  "The ls command lists files",
-			wantCommand:      "ls -la",
+			wantExplanation: "The ls command lists files",
+			wantCommand:     "ls -la",
 		},
 		{
 			name: "response with backticks",
 			response: `Explanation: Use grep to search
 Command: ` + "`grep pattern file.txt`",
-			wantExplanation:  "Use grep to search",
-			wantCommand:      "grep pattern file.txt",
+			wantExplanation: "Use grep to search",
+			wantCommand:     "grep pattern file.txt",
 		},
 		{
-			name:             "empty response",
-			response:         "",
-			wantExplanation:  "Please check command syntax and parameters.",
-			wantCommand:      "echo 'Unable to auto-correct command'",
+			name:            "empty response",
+			response:        "",
+			wantExplanation: "Please check command syntax and parameters.",
+			wantCommand:     "echo 'Unable to auto-correct command'",
 		},
 		{
 			name: "only explanation",
 			response: `Explanation: This is an explanation
 Some other text`,
-			wantExplanation:  "This is an explanation",
-			wantCommand:      "echo 'Unable to auto-correct command'",
+			wantExplanation: "This is an explanation",
+			wantCommand:     "echo 'Unable to auto-correct command'",
 		},
 	}
 
@@ -228,13 +228,13 @@ func TestExtractPlausibleCommand(t *testing.T) {
 			expected: "ls -la",
 		},
 		{
-			name: "command in code block",
-			input: "Here's the command:\n```\nls -la\n```",
+			name:     "command in code block",
+			input:    "Here's the command:\n```\nls -la\n```",
 			expected: "ls -la",
 		},
 		{
-			name: "command in bash code block",
-			input: "```bash\ngrep pattern file.txt\n```",
+			name:     "command in bash code block",
+			input:    "```bash\ngrep pattern file.txt\n```",
 			expected: "bash", // extractPlausibleCommand returns first non-comment line
 		},
 		{

@@ -179,7 +179,6 @@ func (lc *LayeredCache) recordPromotion() {
 	lc.mu.Unlock()
 }
 
-
 // WarmUp 預熱緩存，將 L2 中的熱點數據載入 L1
 func (lc *LayeredCache) WarmUp(keys []string) {
 	for _, key := range keys {

@@ -56,7 +56,7 @@ func DefaultEnhancedHTTPConfig() *EnhancedHTTPConfig {
 		IdleConnTimeout:       90 * time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ResponseHeaderTimeout: 10 * time.Second,
-    	RetryConfig:           aerrors.DefaultRetryConfig(),
+		RetryConfig:           aerrors.DefaultRetryConfig(),
 		CircuitBreakerConfig:  aerrors.DefaultCircuitBreakerConfig(),
 		EnableMetrics:         true,
 		IsRetryableStatusCode: DefaultRetryableStatusCheck,
@@ -71,20 +71,20 @@ func DefaultRetryableStatusCheck(statusCode int) bool {
 
 // NewEnhancedHTTPClient 創建新的增強版 HTTP 客戶端
 func NewEnhancedHTTPClient(config *EnhancedHTTPConfig) *EnhancedHTTPClient {
-    if config == nil {
-        config = DefaultEnhancedHTTPConfig()
-    }
+	if config == nil {
+		config = DefaultEnhancedHTTPConfig()
+	}
 
-    // 若未提供 TLS 設定，預設要求 TLS 1.2 以上
-    if config.TLSConfig == nil {
-        config.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
-    }
+	// 若未提供 TLS 設定，預設要求 TLS 1.2 以上
+	if config.TLSConfig == nil {
+		config.TLSConfig = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
 
-    // 創建 HTTP 傳輸層
-    transport := &http.Transport{
-        MaxIdleConns:          config.MaxIdleConns,
-        MaxIdleConnsPerHost:   config.MaxIdleConnsPerHost,
-        IdleConnTimeout:       config.IdleConnTimeout,
+	// 創建 HTTP 傳輸層
+	transport := &http.Transport{
+		MaxIdleConns:          config.MaxIdleConns,
+		MaxIdleConnsPerHost:   config.MaxIdleConnsPerHost,
+		IdleConnTimeout:       config.IdleConnTimeout,
 		TLSHandshakeTimeout:   config.TLSHandshakeTimeout,
 		ResponseHeaderTimeout: config.ResponseHeaderTimeout,
 		ForceAttemptHTTP2:     true,

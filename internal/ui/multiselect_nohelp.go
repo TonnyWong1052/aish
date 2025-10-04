@@ -58,9 +58,9 @@ func MultiSelectNoHelp(prompt string, options []string, defaultOptions []string)
 
 	// Render a single line
 	renderLine := func(i int) string {
-		checkmark := "[x]"  // 未選中顯示 [x]
+		checkmark := "[x]" // 未選中顯示 [x]
 		if selected[i] {
-			checkmark = "[o]"  // 選中顯示 [o]
+			checkmark = "[o]" // 選中顯示 [o]
 		}
 		prefix := "  "
 		if i == selectedIdx {
@@ -127,22 +127,22 @@ func MultiSelectNoHelp(prompt string, options []string, defaultOptions []string)
 			return true, nil
 		}
 
-    // Redraw: always repaint the visible window to keep alignment stable
-    updateWindow()
-    end := top + maxHeight
-    if end > len(options) {
-        end = len(options)
-    }
+		// Redraw: always repaint the visible window to keep alignment stable
+		updateWindow()
+		end := top + maxHeight
+		if end > len(options) {
+			end = len(options)
+		}
 
-    // Move to the top of the block and redraw all lines from column 0
-    cursor.Up(lineCount)
-    cursor.StartOfLine()
-    for i := top; i < end; i++ {
-        // 清除本行並重畫（逐行輸出，保證左對齊且避免殘影）
-        fmt.Fprint(os.Stdout, "\r\033[K")
-        fmt.Fprintln(os.Stdout, renderLine(i))
-    }
-    lineCount = end - top
+		// Move to the top of the block and redraw all lines from column 0
+		cursor.Up(lineCount)
+		cursor.StartOfLine()
+		for i := top; i < end; i++ {
+			// 清除本行並重畫（逐行輸出，保證左對齊且避免殘影）
+			fmt.Fprint(os.Stdout, "\r\033[K")
+			fmt.Fprintln(os.Stdout, renderLine(i))
+		}
+		lineCount = end - top
 
 		return false, nil
 	}); err != nil {

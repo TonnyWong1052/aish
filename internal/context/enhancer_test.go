@@ -107,9 +107,9 @@ func TestGetDirectoryListing(t *testing.T) {
 	testFiles := []string{"file1.txt", "file2.go", "subdir"}
 	for _, name := range testFiles {
 		if name == "subdir" {
-			_ = os.Mkdir(filepath.Join(tmpDir, name), 0755)
+			_ = os.Mkdir(filepath.Join(tmpDir, name), 0o755)
 		} else {
-			_ = os.WriteFile(filepath.Join(tmpDir, name), []byte("test content"), 0644)
+			_ = os.WriteFile(filepath.Join(tmpDir, name), []byte("test content"), 0o644)
 		}
 	}
 
@@ -211,7 +211,7 @@ func TestReadHistoryFromFile_ZshFormat(t *testing.T) {
 : 1640995220:0;git status
 : 1640995230:0;vim README.md
 `
-	_ = os.WriteFile(tmpFile.Name(), []byte(historyContent), 0644)
+	_ = os.WriteFile(tmpFile.Name(), []byte(historyContent), 0o644)
 
 	commands, err := enhancer.readHistoryFromFile(tmpFile.Name())
 	if err != nil {
@@ -245,7 +245,7 @@ cd project
 git status
 vim README.md
 `
-	_ = os.WriteFile(tmpFile.Name(), []byte(historyContent), 0644)
+	_ = os.WriteFile(tmpFile.Name(), []byte(historyContent), 0o644)
 
 	commands, err := enhancer.readHistoryFromFile(tmpFile.Name())
 	if err != nil {

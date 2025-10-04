@@ -123,12 +123,12 @@ func Init(config Config) error {
 func setupFileOutput(logger *logrus.Logger, config Config) error {
 	// Ensure log directory exists
 	logDir := filepath.Dir(config.LogFile)
-	if err := os.MkdirAll(logDir, 0755); err != nil {
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
 		return err
 	}
 
 	// Open log file
-	file, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	file, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
 	if err != nil {
 		return err
 	}

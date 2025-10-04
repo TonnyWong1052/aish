@@ -116,10 +116,10 @@ func NewIntelligentCache(config *IntelligentCacheConfig) (*IntelligentCache, err
 		CleanupInterval: config.CleanupInterval,
 	}
 
-    primaryCache, err := NewCache(cacheConfig)
-    if err != nil {
+	primaryCache, err := NewCache(cacheConfig)
+	if err != nil {
 		return nil, aerrors.WrapError(err, aerrors.ErrCacheError, "創建基礎快取失敗")
-    }
+	}
 
 	ic := &IntelligentCache{
 		primaryCache: primaryCache,
@@ -178,15 +178,15 @@ func (ic *IntelligentCache) Set(key string, value interface{}, ttl time.Duration
 	}
 
 	// 將條目序列化為字符串存儲到基礎快取
-    entryData, err := ic.serializeEntry(entry)
-    if err != nil {
+	entryData, err := ic.serializeEntry(entry)
+	if err != nil {
 		return aerrors.WrapError(err, aerrors.ErrCacheWrite, "序列化快取條目失敗")
-    }
+	}
 
-    err = ic.primaryCache.Set(key, entryData, ttl)
-    if err != nil {
+	err = ic.primaryCache.Set(key, entryData, ttl)
+	if err != nil {
 		return aerrors.WrapError(err, aerrors.ErrCacheWrite, "寫入快取失敗")
-    }
+	}
 
 	// 記錄分析數據
 	if ic.analytics != nil {
@@ -239,18 +239,18 @@ func (ic *IntelligentCache) Get(key string) (interface{}, bool) {
 
 // GetSimilar 根據語義相似性獲取類似的快取條目
 func (ic *IntelligentCache) GetSimilar(key string, query interface{}) ([]SimilarResult, error) {
-    if !ic.config.EnableSemantic || ic.semanticIndex == nil {
+	if !ic.config.EnableSemantic || ic.semanticIndex == nil {
 		return nil, aerrors.NewError(aerrors.ErrCacheError, "語義搜索未啟用")
-    }
+	}
 
 	ic.mu.RLock()
 	defer ic.mu.RUnlock()
 
 	// 提取查詢的語義數據
-    querySemantics, err := ic.extractSemanticData(key, query)
-    if err != nil {
+	querySemantics, err := ic.extractSemanticData(key, query)
+	if err != nil {
 		return nil, aerrors.WrapError(err, aerrors.ErrCacheError, "提取查詢語義數據失敗")
-    }
+	}
 
 	// 搜索相似條目
 	similarKeys := ic.semanticIndex.FindSimilar(querySemantics, ic.config.MaxSimilarResults)
@@ -338,9 +338,9 @@ type IntelligentCacheStats struct {
 
 // StartPrewarming 啟動快取預熱
 func (ic *IntelligentCache) StartPrewarming(ctx context.Context) error {
-    if !ic.config.EnablePrewarming || ic.prewarmer == nil {
+	if !ic.config.EnablePrewarming || ic.prewarmer == nil {
 		return aerrors.NewError(aerrors.ErrCacheError, "快取預熱未啟用")
-    }
+	}
 
 	return ic.prewarmer.Start(ctx)
 }
@@ -357,9 +357,9 @@ func (ic *IntelligentCache) Optimize() error {
 	ic.mu.Lock()
 	defer ic.mu.Unlock()
 
-    if ic.analytics == nil {
+	if ic.analytics == nil {
 		return aerrors.NewError(aerrors.ErrCacheError, "快取分析未啟用")
-    }
+	}
 
 	analytics := ic.analytics.GetStats()
 
@@ -373,7 +373,7 @@ func (ic *IntelligentCache) Optimize() error {
 		return ic.lfuEviction()
 	case EvictionTTL:
 		return ic.ttlEviction()
-    default:
+	default:
 		return aerrors.NewError(aerrors.ErrCacheError, "未知的淘汰策略")
 	}
 }

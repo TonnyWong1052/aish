@@ -48,7 +48,7 @@ func TestAddHookToFile(t *testing.T) {
 
 	// Write initial content
 	initialContent := "# This is a test .bashrc\nexport PATH=$PATH:~/bin\n"
-	err = os.WriteFile(testFile, []byte(initialContent), 0644)
+	err = os.WriteFile(testFile, []byte(initialContent), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
@@ -124,7 +124,7 @@ __aish_hook() {
 alias ll='ls -la'
 `
 
-	err = os.WriteFile(testFile, []byte(contentWithHook), 0644)
+	err = os.WriteFile(testFile, []byte(contentWithHook), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to write test file: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestRemoveHookFromFileWithoutHook(t *testing.T) {
 
 	// Write content without hook
 	content := "# This is a test .bashrc\nexport PATH=$PATH:~/bin\n"
-	err = os.WriteFile(testFile, []byte(content), 0644)
+	err = os.WriteFile(testFile, []byte(content), 0o644)
 	if err != nil {
 		t.Fatalf("Failed to write test file: %v", err)
 	}

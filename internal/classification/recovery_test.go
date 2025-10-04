@@ -216,7 +216,6 @@ func TestRetryWithBackoff(t *testing.T) {
 			attempts++
 			return nil // Success
 		})
-
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}
@@ -234,7 +233,6 @@ func TestRetryWithBackoff(t *testing.T) {
 			}
 			return nil // Success on second attempt
 		})
-
 		if err != nil {
 			t.Errorf("Expected no error, got %v", err)
 		}

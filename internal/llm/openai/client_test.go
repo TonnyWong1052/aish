@@ -154,23 +154,23 @@ func TestParseSuggestionResponse(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		response         string
-		wantExplanation  string
-		wantCommand      string
+		name            string
+		response        string
+		wantExplanation string
+		wantCommand     string
 	}{
 		{
 			name: "text response with markers",
 			response: `Explanation: Use grep to search
 Command: grep pattern file.txt`,
-			wantExplanation:  "Use grep to search",
-			wantCommand:      "grep pattern file.txt",
+			wantExplanation: "Use grep to search",
+			wantCommand:     "grep pattern file.txt",
 		},
 		{
-			name:             "empty response",
-			response:         "",
-			wantExplanation:  "請檢查命令語法和參數是否正確。", // Default message is in Chinese
-			wantCommand:      "echo '無法自動修正命令，請手動檢查'", // Default message is in Chinese
+			name:            "empty response",
+			response:        "",
+			wantExplanation: "請檢查命令語法和參數是否正確。",       // Default message is in Chinese
+			wantCommand:     "echo '無法自動修正命令，請手動檢查'", // Default message is in Chinese
 		},
 	}
 
@@ -194,28 +194,28 @@ Command: grep pattern file.txt`,
 
 func TestResolveURL(t *testing.T) {
 	tests := []struct {
-		name        string
-		endpoint    string
-		subpath     string
-		expected    string
+		name     string
+		endpoint string
+		subpath  string
+		expected string
 	}{
 		{
-			name:        "with /v1",
-			endpoint:    "https://api.openai.com/v1",
-			subpath:     "/chat/completions",
-			expected:    "https://api.openai.com/v1/chat/completions",
+			name:     "with /v1",
+			endpoint: "https://api.openai.com/v1",
+			subpath:  "/chat/completions",
+			expected: "https://api.openai.com/v1/chat/completions",
 		},
 		{
-			name:        "without /v1",
-			endpoint:    "https://custom.api.com",
-			subpath:     "/chat/completions",
-			expected:    "https://custom.api.com/v1/chat/completions",
+			name:     "without /v1",
+			endpoint: "https://custom.api.com",
+			subpath:  "/chat/completions",
+			expected: "https://custom.api.com/v1/chat/completions",
 		},
 		{
-			name:        "trailing slash",
-			endpoint:    "https://api.openai.com/v1/",
-			subpath:     "/models",
-			expected:    "https://api.openai.com/v1/models",
+			name:     "trailing slash",
+			endpoint: "https://api.openai.com/v1/",
+			subpath:  "/models",
+			expected: "https://api.openai.com/v1/models",
 		},
 	}
 

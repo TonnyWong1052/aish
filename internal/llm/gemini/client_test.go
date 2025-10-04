@@ -158,23 +158,23 @@ func TestParseSuggestionResponse(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		response         string
-		wantExplanation  string
-		wantCommand      string
+		name            string
+		response        string
+		wantExplanation string
+		wantCommand     string
 	}{
 		{
 			name: "text response with markers",
 			response: `Explanation: Use grep to search
 Command: grep pattern file.txt`,
-			wantExplanation:  "Use grep to search",
-			wantCommand:      "grep pattern file.txt",
+			wantExplanation: "Use grep to search",
+			wantCommand:     "grep pattern file.txt",
 		},
 		{
-			name:             "empty response",
-			response:         "",
-			wantExplanation:  "請檢查命令語法和參數是否正確。",
-			wantCommand:      "echo '無法自動修正命令，請手動檢查'",
+			name:            "empty response",
+			response:        "",
+			wantExplanation: "請檢查命令語法和參數是否正確。",
+			wantCommand:     "echo '無法自動修正命令，請手動檢查'",
 		},
 	}
 

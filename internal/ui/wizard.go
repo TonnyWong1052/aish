@@ -1,26 +1,26 @@
 package ui
 
 import (
-    "context"
-    "encoding/json"
-    "fmt"
-    "io"
-    "net/http"
-    "os"
-    "os/exec"
-    "path/filepath"
-    "runtime"
-    "strconv"
-    "strings"
-    "time"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"strconv"
+	"strings"
+	"time"
 
-    "github.com/TonnyWong1052/aish/internal/config"
-    aerrors "github.com/TonnyWong1052/aish/internal/errors"
-    "github.com/TonnyWong1052/aish/internal/llm/gemini/auth"
-    "github.com/TonnyWong1052/aish/internal/llm/openai"
-    "github.com/TonnyWong1052/aish/internal/prompt"
+	"github.com/pterm/pterm"
 
-    "github.com/pterm/pterm"
+	"github.com/TonnyWong1052/aish/internal/config"
+	aerrors "github.com/TonnyWong1052/aish/internal/errors"
+	"github.com/TonnyWong1052/aish/internal/llm/gemini/auth"
+	"github.com/TonnyWong1052/aish/internal/llm/openai"
+	"github.com/TonnyWong1052/aish/internal/prompt"
 )
 
 // ConfigWizard configuration wizard
@@ -79,10 +79,10 @@ func (w *ConfigWizard) Run() error {
 		pterm.DefaultSection.Printf("Step %d/%d: %s", i+1, len(steps), step.Name)
 
 		if err := step.Handler(); err != nil {
-        if aerrors.HasCode(err, aerrors.ErrUserCancel) {
-            pterm.Info.Println("Configuration cancelled")
-            return err
-        }
+			if aerrors.HasCode(err, aerrors.ErrUserCancel) {
+				pterm.Info.Println("Configuration cancelled")
+				return err
+			}
 			return err
 		}
 
@@ -560,7 +560,6 @@ func (w *ConfigWizard) configureGeminiCLI(cfg *config.ProviderConfig) error {
 			}
 		}
 
-
 		// 先讀取 AISH 憑證檔的 project_id（若 OAuth callback 已提供該欄位）
 		if pid := readProjectIDFromAishCreds(); (strings.TrimSpace(cfg.Project) == "" || cfg.Project == "YOUR_GEMINI_PROJECT_ID") && pid != "" {
 			cfg.Project = pid
@@ -569,15 +568,15 @@ func (w *ConfigWizard) configureGeminiCLI(cfg *config.ProviderConfig) error {
 
 		// 一律先嘗試以 OAuth 列出可用專案，讓使用者確認或更換（避免沿用舊設定或 gcloud 預設）
 		if list, err := auth.SearchProjectsV3(context.Background()); err == nil && len(list) > 0 {
-                // 若目前設定已有專案，且可被當前 OAuth 帳號訪問，直接沿用；不可訪問則自動清空並改用 OAuth 清單
-                if s := strings.TrimSpace(cfg.Project); s != "" && s != "YOUR_GEMINI_PROJECT_ID" {
-                    if _, err := auth.GetProject(context.Background(), s); err == nil {
-                        pterm.Success.Printf("Using configured project: %s\n", displayLabelForProject(cfg.Project))
-                    } else {
-                        pterm.Warning.Printf("Configured project not accessible with current OAuth account: %s\n", displayLabelForProject(s))
-                        cfg.Project = ""
-                    }
-                }
+			// 若目前設定已有專案，且可被當前 OAuth 帳號訪問，直接沿用；不可訪問則自動清空並改用 OAuth 清單
+			if s := strings.TrimSpace(cfg.Project); s != "" && s != "YOUR_GEMINI_PROJECT_ID" {
+				if _, err := auth.GetProject(context.Background(), s); err == nil {
+					pterm.Success.Printf("Using configured project: %s\n", displayLabelForProject(cfg.Project))
+				} else {
+					pterm.Warning.Printf("Configured project not accessible with current OAuth account: %s\n", displayLabelForProject(s))
+					cfg.Project = ""
+				}
+			}
 
 			if strings.TrimSpace(cfg.Project) == "" || cfg.Project == "YOUR_GEMINI_PROJECT_ID" {
 				// 預設候選（若有）
@@ -586,177 +585,177 @@ func (w *ConfigWizard) configureGeminiCLI(cfg *config.ProviderConfig) error {
 					def = strings.TrimSpace(list[0].ProjectID)
 				}
 
-                    // 自動選擇預設專案（無需手動確認）
-                    if strings.TrimSpace(def) != "" {
-                        cfg.Project = def
-                        pterm.Success.Printf("Selected project (auto): %s\n", displayLabelForProject(cfg.Project))
-                    }
+				// 自動選擇預設專案（無需手動確認）
+				if strings.TrimSpace(def) != "" {
+					cfg.Project = def
+					pterm.Success.Printf("Selected project (auto): %s\n", displayLabelForProject(cfg.Project))
+				}
 			}
-            }
+		}
 
-        // If a configured project exists but may not be accessible with current OAuth account, auto-switch (no prompt)
-        if strings.TrimSpace(cfg.Project) != "" && cfg.Project != "YOUR_GEMINI_PROJECT_ID" {
-            if _, err := auth.GetProject(context.Background(), strings.TrimSpace(cfg.Project)); err != nil {
-                pterm.Warning.Printf("Configured project is not accessible with current OAuth account: %s\n", displayLabelForProject(cfg.Project))
-                pterm.Info.Println("Auto-switching to an OAuth-accessible project...")
-                cfg.Project = ""
-            }
-        }
+		// If a configured project exists but may not be accessible with current OAuth account, auto-switch (no prompt)
+		if strings.TrimSpace(cfg.Project) != "" && cfg.Project != "YOUR_GEMINI_PROJECT_ID" {
+			if _, err := auth.GetProject(context.Background(), strings.TrimSpace(cfg.Project)); err != nil {
+				pterm.Warning.Printf("Configured project is not accessible with current OAuth account: %s\n", displayLabelForProject(cfg.Project))
+				pterm.Info.Println("Auto-switching to an OAuth-accessible project...")
+				cfg.Project = ""
+			}
+		}
 
-        // If still not set, try metadata/gcloud auto-detection (no external APIs)
-	        if strings.TrimSpace(cfg.Project) == "" || cfg.Project == "YOUR_GEMINI_PROJECT_ID" {
-	            pterm.Info.Println("Attempting to auto-detect Google Cloud Project from metadata/gcloud...")
-            // Also show the authenticated Google account for clarity and the gcloud account
-            var oauthEmail, gcloudEmail string
-            if email, err := auth.GetAuthenticatedEmail(context.Background()); err == nil {
-                if s := strings.TrimSpace(email); s != "" {
-                    oauthEmail = s
-                    pterm.Info.Printf("Authenticated Google account (OAuth): %s\n", s)
-                }
-            }
-            if s := strings.TrimSpace(getGcloudAccount()); s != "" {
-                gcloudEmail = s
-                pterm.Info.Printf("gcloud default account: %s\n", s)
-            }
+		// If still not set, try metadata/gcloud auto-detection (no external APIs)
+		if strings.TrimSpace(cfg.Project) == "" || cfg.Project == "YOUR_GEMINI_PROJECT_ID" {
+			pterm.Info.Println("Attempting to auto-detect Google Cloud Project from metadata/gcloud...")
+			// Also show the authenticated Google account for clarity and the gcloud account
+			var oauthEmail, gcloudEmail string
+			if email, err := auth.GetAuthenticatedEmail(context.Background()); err == nil {
+				if s := strings.TrimSpace(email); s != "" {
+					oauthEmail = s
+					pterm.Info.Printf("Authenticated Google account (OAuth): %s\n", s)
+				}
+			}
+			if s := strings.TrimSpace(getGcloudAccount()); s != "" {
+				gcloudEmail = s
+				pterm.Info.Printf("gcloud default account: %s\n", s)
+			}
 
-            useGcloud := true
-            if oauthEmail != "" && gcloudEmail != "" && !strings.EqualFold(oauthEmail, gcloudEmail) {
-                // Auto-decide: avoid gcloud fallback when accounts mismatch
-                pterm.Warning.Println("OAuth account differs from gcloud account; skipping gcloud-based project detection.")
-                useGcloud = false
-            }
+			useGcloud := true
+			if oauthEmail != "" && gcloudEmail != "" && !strings.EqualFold(oauthEmail, gcloudEmail) {
+				// Auto-decide: avoid gcloud fallback when accounts mismatch
+				pterm.Warning.Println("OAuth account differs from gcloud account; skipping gcloud-based project detection.")
+				useGcloud = false
+			}
 
-            pid := ""
-            if useGcloud {
-                if p, _ := auth.AutoDetectProjectID(context.Background()); strings.TrimSpace(p) != "" {
-                    pid = strings.TrimSpace(p)
-                    // Verify the detected project is accessible with current OAuth credentials
-                    if _, err := auth.GetProject(context.Background(), pid); err != nil {
-                        pterm.Warning.Printf("gcloud default project '%s' is not accessible with current OAuth account, skipping.\n", pid)
-                        pid = ""
-                    } else {
-                        cfg.Project = pid
-                    }
-                }
-            }
-            if pid != "" {
-                pterm.Success.Printf("Auto-detected default project: %s\n", displayLabelForProject(cfg.Project))
-            } else {
-                // gcloud not found? offer to install and set up
-                if !hasCommand("gcloud") {
-                    pterm.Warning.Println("gcloud CLI not found. It is required for local project auto-detection.")
-                    install, _ := pterm.DefaultInteractiveConfirm.
-                        WithDefaultValue(true).
-                        Show("Install Google Cloud CLI (gcloud) now?")
-                    if install {
-                        if err := ensureGcloudInstalled(); err != nil {
-                            pterm.Error.Printfln("Failed to install gcloud automatically: %v", err)
-                            pterm.Info.Println("Please install gcloud manually and re-run 'aish config'. Docs: https://cloud.google.com/sdk/docs/install")
-                        }
-                    } else {
-                        // 使用者拒絕安裝 gcloud：以錯誤終止初始化流程
-                        pterm.Error.Println("gcloud is required to complete Gemini CLI project setup.")
-                        switch runtime.GOOS {
-                        case "darwin":
-                            pterm.Info.Println("Install via Homebrew: brew install --cask google-cloud-sdk")
-                        case "linux":
-                            pterm.Info.Println("Install via your package manager (e.g., apt-get install google-cloud-cli) or see docs below")
-                        default:
-                            pterm.Info.Println("Install gcloud using your platform's package manager")
-                        }
-                        pterm.Info.Println("Docs: https://cloud.google.com/sdk/docs/install")
-                        pterm.Info.Println("Alternatively, set project manually later: aish config set providers.gemini-cli.project <PROJECT_ID>")
-                        return aerrors.NewError(aerrors.ErrConfigValidation, "gcloud not installed; user declined installation")
-                    }
-                }
+			pid := ""
+			if useGcloud {
+				if p, _ := auth.AutoDetectProjectID(context.Background()); strings.TrimSpace(p) != "" {
+					pid = strings.TrimSpace(p)
+					// Verify the detected project is accessible with current OAuth credentials
+					if _, err := auth.GetProject(context.Background(), pid); err != nil {
+						pterm.Warning.Printf("gcloud default project '%s' is not accessible with current OAuth account, skipping.\n", pid)
+						pid = ""
+					} else {
+						cfg.Project = pid
+					}
+				}
+			}
+			if pid != "" {
+				pterm.Success.Printf("Auto-detected default project: %s\n", displayLabelForProject(cfg.Project))
+			} else {
+				// gcloud not found? offer to install and set up
+				if !hasCommand("gcloud") {
+					pterm.Warning.Println("gcloud CLI not found. It is required for local project auto-detection.")
+					install, _ := pterm.DefaultInteractiveConfirm.
+						WithDefaultValue(true).
+						Show("Install Google Cloud CLI (gcloud) now?")
+					if install {
+						if err := ensureGcloudInstalled(); err != nil {
+							pterm.Error.Printfln("Failed to install gcloud automatically: %v", err)
+							pterm.Info.Println("Please install gcloud manually and re-run 'aish config'. Docs: https://cloud.google.com/sdk/docs/install")
+						}
+					} else {
+						// 使用者拒絕安裝 gcloud：以錯誤終止初始化流程
+						pterm.Error.Println("gcloud is required to complete Gemini CLI project setup.")
+						switch runtime.GOOS {
+						case "darwin":
+							pterm.Info.Println("Install via Homebrew: brew install --cask google-cloud-sdk")
+						case "linux":
+							pterm.Info.Println("Install via your package manager (e.g., apt-get install google-cloud-cli) or see docs below")
+						default:
+							pterm.Info.Println("Install gcloud using your platform's package manager")
+						}
+						pterm.Info.Println("Docs: https://cloud.google.com/sdk/docs/install")
+						pterm.Info.Println("Alternatively, set project manually later: aish config set providers.gemini-cli.project <PROJECT_ID>")
+						return aerrors.NewError(aerrors.ErrConfigValidation, "gcloud not installed; user declined installation")
+					}
+				}
 
-                if hasCommand("gcloud") {
-                    pterm.Info.Println("Launching 'gcloud auth login' (a browser will open)...")
-                    _ = runCommandInteractive("gcloud", "auth", "login")
+				if hasCommand("gcloud") {
+					pterm.Info.Println("Launching 'gcloud auth login' (a browser will open)...")
+					_ = runCommandInteractive("gcloud", "auth", "login")
 
-	                    if pid := getGcloudProjectID(); strings.TrimSpace(pid) != "" && pid != "(unset)" {
-	                        cfg.Project = pid
-	                        pterm.Success.Printf("Detected default project from gcloud: %s\n", displayLabelForProject(cfg.Project))
-                    } else {
-                        // 列出可選專案供使用者選擇
-                        if list, err := listGcloudProjects(); err == nil && len(list) > 0 {
-                            if len(list) == 1 {
-                                s := strings.TrimSpace(list[0].ProjectID)
-                                if s != "" {
-                                    _ = runCommandInteractive("gcloud", "config", "set", "project", s)
-	                                    if pid := getGcloudProjectID(); strings.TrimSpace(pid) != "" && pid != "(unset)" {
-	                                        cfg.Project = pid
-	                                        pterm.Success.Printf("Project set via gcloud: %s\n", displayLabelForProject(cfg.Project))
-                                    }
-                                }
-                            } else {
-                                options := make([]string, 0, len(list)+1)
-                                labelToID := map[string]string{}
-                                for _, p := range list {
-                                    label := fmt.Sprintf("%s (%s)", firstNonEmpty(p.Name, p.ProjectID), p.ProjectID)
-                                    options = append(options, label)
-                                    labelToID[label] = p.ProjectID
-                                }
-                                options = append(options, "Skip")
-                                choice, _ := pterm.DefaultInteractiveSelect.
-                                    WithOptions(options).
-                                    WithDefaultOption(options[0]).
-                                    Show("Select a Google Cloud Project to set as default")
-                                if id, ok := labelToID[choice]; ok && strings.TrimSpace(id) != "" {
-	                                    if err := runCommandInteractive("gcloud", "config", "set", "project", id); err == nil {
-	                                        if pid := getGcloudProjectID(); strings.TrimSpace(pid) != "" && pid != "(unset)" {
-	                                            cfg.Project = pid
-	                                            pterm.Success.Printf("Project set via gcloud: %s\n", displayLabelForProject(cfg.Project))
-                                        }
-                                    }
-                                } else if choice != "Skip" {
-                                    pterm.Warning.Println("Invalid selection; skipping.")
-                                }
-                            }
-                        } else {
-                            // 回退：手動輸入
-                            manualID, _ := pterm.DefaultInteractiveTextInput.
-                                Show("Enter your Google Cloud Project ID to set as default (or leave empty to skip)")
-                            if s := strings.TrimSpace(manualID); s != "" {
-	                                if err := runCommandInteractive("gcloud", "config", "set", "project", s); err == nil {
-	                                    if pid := getGcloudProjectID(); strings.TrimSpace(pid) != "" && pid != "(unset)" {
-	                                        cfg.Project = pid
-	                                        pterm.Success.Printf("Project set via gcloud: %s\n", displayLabelForProject(cfg.Project))
-                                    }
-                                } else {
-                                    pterm.Warning.Printfln("Failed to set gcloud default project: %v", err)
-                                }
-                            }
-                        }
-                    }
+					if pid := getGcloudProjectID(); strings.TrimSpace(pid) != "" && pid != "(unset)" {
+						cfg.Project = pid
+						pterm.Success.Printf("Detected default project from gcloud: %s\n", displayLabelForProject(cfg.Project))
+					} else {
+						// 列出可選專案供使用者選擇
+						if list, err := listGcloudProjects(); err == nil && len(list) > 0 {
+							if len(list) == 1 {
+								s := strings.TrimSpace(list[0].ProjectID)
+								if s != "" {
+									_ = runCommandInteractive("gcloud", "config", "set", "project", s)
+									if pid := getGcloudProjectID(); strings.TrimSpace(pid) != "" && pid != "(unset)" {
+										cfg.Project = pid
+										pterm.Success.Printf("Project set via gcloud: %s\n", displayLabelForProject(cfg.Project))
+									}
+								}
+							} else {
+								options := make([]string, 0, len(list)+1)
+								labelToID := map[string]string{}
+								for _, p := range list {
+									label := fmt.Sprintf("%s (%s)", firstNonEmpty(p.Name, p.ProjectID), p.ProjectID)
+									options = append(options, label)
+									labelToID[label] = p.ProjectID
+								}
+								options = append(options, "Skip")
+								choice, _ := pterm.DefaultInteractiveSelect.
+									WithOptions(options).
+									WithDefaultOption(options[0]).
+									Show("Select a Google Cloud Project to set as default")
+								if id, ok := labelToID[choice]; ok && strings.TrimSpace(id) != "" {
+									if err := runCommandInteractive("gcloud", "config", "set", "project", id); err == nil {
+										if pid := getGcloudProjectID(); strings.TrimSpace(pid) != "" && pid != "(unset)" {
+											cfg.Project = pid
+											pterm.Success.Printf("Project set via gcloud: %s\n", displayLabelForProject(cfg.Project))
+										}
+									}
+								} else if choice != "Skip" {
+									pterm.Warning.Println("Invalid selection; skipping.")
+								}
+							}
+						} else {
+							// 回退：手動輸入
+							manualID, _ := pterm.DefaultInteractiveTextInput.
+								Show("Enter your Google Cloud Project ID to set as default (or leave empty to skip)")
+							if s := strings.TrimSpace(manualID); s != "" {
+								if err := runCommandInteractive("gcloud", "config", "set", "project", s); err == nil {
+									if pid := getGcloudProjectID(); strings.TrimSpace(pid) != "" && pid != "(unset)" {
+										cfg.Project = pid
+										pterm.Success.Printf("Project set via gcloud: %s\n", displayLabelForProject(cfg.Project))
+									}
+								} else {
+									pterm.Warning.Printfln("Failed to set gcloud default project: %v", err)
+								}
+							}
+						}
+					}
 
-                    if strings.TrimSpace(cfg.Project) == "" || cfg.Project == "YOUR_GEMINI_PROJECT_ID" {
-                        pterm.Warning.Println("Project still not set. You can set it later with 'aish config set providers.gemini-cli.project <PROJECT_ID>'.")
-                    }
-                } else {
-                    pterm.Warning.Println("gcloud is not available; skipping auto-detection.")
-                }
-            }
-        }
+					if strings.TrimSpace(cfg.Project) == "" || cfg.Project == "YOUR_GEMINI_PROJECT_ID" {
+						pterm.Warning.Println("Project still not set. You can set it later with 'aish config set providers.gemini-cli.project <PROJECT_ID>'.")
+					}
+				} else {
+					pterm.Warning.Println("gcloud is not available; skipping auto-detection.")
+				}
+			}
+		}
 
-        // 在本步驟結束前，統一再回顯一次選定的 GCP 專案名稱
-        if s := strings.TrimSpace(cfg.Project); s != "" && s != "YOUR_GEMINI_PROJECT_ID" {
-            pterm.Success.Printf("Using Google Cloud Project: %s\n", displayLabelForProject(s))
+		// 在本步驟結束前，統一再回顯一次選定的 GCP 專案名稱
+		if s := strings.TrimSpace(cfg.Project); s != "" && s != "YOUR_GEMINI_PROJECT_ID" {
+			pterm.Success.Printf("Using Google Cloud Project: %s\n", displayLabelForProject(s))
 
-            // Try to enable Gemini API for the selected project
-            ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Second)
-            defer cancel2()
-            if err := enableGeminiAPIsForProject(ctx2, s); err != nil {
-                // Just warn, don't fail the wizard
-                pterm.Warning.Printf("Could not auto-enable Gemini APIs: %v\n", err)
-                pterm.Info.Println("Please enable them manually:")
-                pterm.Info.Printf("  gcloud services enable cloudaicompanion.googleapis.com --project=%s\n", s)
-            }
-        }
-    } else {
-        pterm.Info.Println("AISH will attempt to use existing credentials from `~/.gemini/`.")
-        pterm.Info.Println("Please ensure `gemini-cli` is installed and authenticated.")
-    }
+			// Try to enable Gemini API for the selected project
+			ctx2, cancel2 := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel2()
+			if err := enableGeminiAPIsForProject(ctx2, s); err != nil {
+				// Just warn, don't fail the wizard
+				pterm.Warning.Printf("Could not auto-enable Gemini APIs: %v\n", err)
+				pterm.Info.Println("Please enable them manually:")
+				pterm.Info.Printf("  gcloud services enable cloudaicompanion.googleapis.com --project=%s\n", s)
+			}
+		}
+	} else {
+		pterm.Info.Println("AISH will attempt to use existing credentials from `~/.gemini/`.")
+		pterm.Info.Println("Please ensure `gemini-cli` is installed and authenticated.")
+	}
 
 	return nil
 }
@@ -779,14 +778,14 @@ func (w *ConfigWizard) configureLanguage() error {
 
 	// Map display names to internal values
 	languageValues := map[string]string{
-		"English":                            "english",
-		"繁體中文 (Traditional Chinese)":        "zh-TW",
-		"简体中文 (Simplified Chinese)":        "zh-CN",
-		"日本語 (Japanese)":                   "ja",
-		"한국어 (Korean)":                      "ko",
-		"Español (Spanish)":                  "es",
-		"Français (French)":                  "fr",
-		"Deutsch (German)":                   "de",
+		"English":                    "english",
+		"繁體中文 (Traditional Chinese)": "zh-TW",
+		"简体中文 (Simplified Chinese)":  "zh-CN",
+		"日本語 (Japanese)":             "ja",
+		"한국어 (Korean)":               "ko",
+		"Español (Spanish)":          "es",
+		"Français (French)":          "fr",
+		"Deutsch (German)":           "de",
 	}
 
 	// Find current language display name
@@ -818,10 +817,10 @@ func (w *ConfigWizard) configureLanguage() error {
 
 // firstNonEmpty 回傳第一個非空字串
 func firstNonEmpty(a, b string) string {
-    if strings.TrimSpace(a) != "" {
-        return a
-    }
-    return b
+	if strings.TrimSpace(a) != "" {
+		return a
+	}
+	return b
 }
 
 // configureErrorTriggers configures error triggers
@@ -1101,9 +1100,9 @@ func (w *ConfigWizard) finishConfiguration() error {
 
 	// Save configuration
 	pterm.Info.Println("Saving configuration...")
-    if err := w.config.Save(); err != nil {
-        return aerrors.ErrConfigSaveFailed("", err)
-    }
+	if err := w.config.Save(); err != nil {
+		return aerrors.ErrConfigSaveFailed("", err)
+	}
 
 	// Show configuration summary
 	w.showConfigurationSummary()
@@ -1142,10 +1141,10 @@ func (w *ConfigWizard) showConfigurationSummary() {
 
 // boolToStatus converts boolean to status label
 func boolToStatus(enabled bool) string {
-    if enabled {
-        return pterm.LightGreen("Enabled")
-    }
-    return pterm.LightRed("Disabled")
+	if enabled {
+		return pterm.LightGreen("Enabled")
+	}
+	return pterm.LightRed("Disabled")
 }
 
 // runQuickStart performs automatic configuration with optimal defaults
@@ -1259,248 +1258,252 @@ func (w *ConfigWizard) runQuickStart() error {
 
 // enableGeminiAPIsForProject enables the required Google Cloud APIs for a project
 func enableGeminiAPIsForProject(ctx context.Context, projectID string) error {
-    // Try to get access token from OAuth credentials
-    cfgPath, err := config.GetConfigPath()
-    if err != nil {
-        return fmt.Errorf("failed to get config path: %w", err)
-    }
-    dir := filepath.Dir(cfgPath)
-    credsPath := filepath.Join(dir, "gemini_oauth_creds.json")
+	// Try to get access token from OAuth credentials
+	cfgPath, err := config.GetConfigPath()
+	if err != nil {
+		return fmt.Errorf("failed to get config path: %w", err)
+	}
+	dir := filepath.Dir(cfgPath)
+	credsPath := filepath.Join(dir, "gemini_oauth_creds.json")
 
-    data, err := os.ReadFile(credsPath)
-    if err != nil {
-        return fmt.Errorf("failed to read credentials: %w", err)
-    }
+	data, err := os.ReadFile(credsPath)
+	if err != nil {
+		return fmt.Errorf("failed to read credentials: %w", err)
+	}
 
-    var creds map[string]interface{}
-    if err := json.Unmarshal(data, &creds); err != nil {
-        return fmt.Errorf("failed to parse credentials: %w", err)
-    }
+	var creds map[string]interface{}
+	if err := json.Unmarshal(data, &creds); err != nil {
+		return fmt.Errorf("failed to parse credentials: %w", err)
+	}
 
-    accessToken, ok := creds["access_token"].(string)
-    if !ok || strings.TrimSpace(accessToken) == "" {
-        return fmt.Errorf("no access token found in credentials")
-    }
+	accessToken, ok := creds["access_token"].(string)
+	if !ok || strings.TrimSpace(accessToken) == "" {
+		return fmt.Errorf("no access token found in credentials")
+	}
 
-    pterm.Info.Printf("Enabling Gemini for Google Cloud API for project %s...\n", projectID)
+	pterm.Info.Printf("Enabling Gemini for Google Cloud API for project %s...\n", projectID)
 
-    // Use the Service Usage API to enable the Gemini API
-    client := &http.Client{Timeout: 30 * time.Second}
-    api := "cloudaicompanion.googleapis.com"
+	// Use the Service Usage API to enable the Gemini API
+	client := &http.Client{Timeout: 30 * time.Second}
+	api := "cloudaicompanion.googleapis.com"
 
-    endpoint := fmt.Sprintf("https://serviceusage.googleapis.com/v1/projects/%s/services/%s:enable",
-        projectID, api)
+	endpoint := fmt.Sprintf("https://serviceusage.googleapis.com/v1/projects/%s/services/%s:enable",
+		projectID, api)
 
-    req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader("{}"))
-    if err != nil {
-        return fmt.Errorf("failed to create request: %w", err)
-    }
-    req.Header.Set("Authorization", "Bearer "+accessToken)
-    req.Header.Set("Content-Type", "application/json")
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader("{}"))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Content-Type", "application/json")
 
-    resp, err := client.Do(req)
-    if err != nil {
-        return fmt.Errorf("network error: %w", err)
-    }
-    defer resp.Body.Close()
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("network error: %w", err)
+	}
+	defer resp.Body.Close()
 
-    body, _ := io.ReadAll(resp.Body)
+	body, _ := io.ReadAll(resp.Body)
 
-    switch resp.StatusCode {
-    case 200, 201:
-        pterm.Success.Printf("✓ Gemini for Google Cloud API enabled successfully\n")
-        return nil
-    case 409:
-        pterm.Info.Printf("✓ Gemini for Google Cloud API is already enabled\n")
-        return nil
-    case 403:
-        return fmt.Errorf("insufficient permissions to enable APIs")
-    default:
-        var errResp struct {
-            Error struct {
-                Message string `json:"message"`
-            } `json:"error"`
-        }
-        json.Unmarshal(body, &errResp)
-        if errResp.Error.Message != "" {
-            return fmt.Errorf("%s", errResp.Error.Message)
-        }
-        return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
-    }
+	switch resp.StatusCode {
+	case 200, 201:
+		pterm.Success.Printf("✓ Gemini for Google Cloud API enabled successfully\n")
+		return nil
+	case 409:
+		pterm.Info.Printf("✓ Gemini for Google Cloud API is already enabled\n")
+		return nil
+	case 403:
+		return fmt.Errorf("insufficient permissions to enable APIs")
+	default:
+		var errResp struct {
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		json.Unmarshal(body, &errResp)
+		if errResp.Error.Message != "" {
+			return fmt.Errorf("%s", errResp.Error.Message)
+		}
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
 }
 
 // readProjectIDFromAishCreds 嘗試從 AISH 設定目錄中的 gemini_oauth_creds.json 讀取 project_id
 func readProjectIDFromAishCreds() string {
-    cfgPath, err := config.GetConfigPath()
-    if err != nil {
-        return ""
-    }
-    dir := filepath.Dir(cfgPath)
-    path := filepath.Join(dir, "gemini_oauth_creds.json")
-    b, err := os.ReadFile(path)
-    if err != nil || len(b) == 0 {
-        return ""
-    }
-    m := map[string]any{}
-    if err := json.Unmarshal(b, &m); err != nil {
-        return ""
-    }
-    if v, ok := m["project_id"].(string); ok {
-        v = strings.TrimSpace(v)
-        if v != "" {
-            return v
-        }
-    }
-    return ""
+	cfgPath, err := config.GetConfigPath()
+	if err != nil {
+		return ""
+	}
+	dir := filepath.Dir(cfgPath)
+	path := filepath.Join(dir, "gemini_oauth_creds.json")
+	b, err := os.ReadFile(path)
+	if err != nil || len(b) == 0 {
+		return ""
+	}
+	m := map[string]any{}
+	if err := json.Unmarshal(b, &m); err != nil {
+		return ""
+	}
+	if v, ok := m["project_id"].(string); ok {
+		v = strings.TrimSpace(v)
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // hasCommand returns true if the command is available in PATH
 func hasCommand(name string) bool {
-    _, err := exec.LookPath(name)
-    return err == nil
+	_, err := exec.LookPath(name)
+	return err == nil
 }
 
 // runCommandInteractive runs a command inheriting stdio (useful for auth/login flows)
 func runCommandInteractive(name string, args ...string) error {
-    cmd := exec.Command(name, args...)
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    cmd.Stdin = os.Stdin
-    return cmd.Run()
+	cmd := exec.Command(name, args...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
 }
 
 // getGcloudProjectID reads gcloud's current default project (returns empty or "(unset)" when not set)
 func getGcloudProjectID() string {
-    if !hasCommand("gcloud") {
-        return ""
-    }
-    out, err := exec.Command("gcloud", "config", "get-value", "project").CombinedOutput()
-    if err != nil {
-        return ""
-    }
-    return strings.TrimSpace(string(out))
+	if !hasCommand("gcloud") {
+		return ""
+	}
+	out, err := exec.Command("gcloud", "config", "get-value", "project").CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 type gcloudProject struct {
-    ProjectID       string `json:"projectId"`
-    Name            string `json:"name"`
-    LifecycleState  string `json:"lifecycleState"`
+	ProjectID      string `json:"projectId"`
+	Name           string `json:"name"`
+	LifecycleState string `json:"lifecycleState"`
 }
 
 // listGcloudProjects returns ACTIVE projects visible to the current gcloud account
 func listGcloudProjects() ([]gcloudProject, error) {
-    if !hasCommand("gcloud") {
-        return nil, fmt.Errorf("gcloud not found")
-    }
-    out, err := exec.Command("gcloud", "projects", "list", "--format=json").CombinedOutput()
-    if err != nil {
-        return nil, fmt.Errorf("gcloud list failed: %v", err)
-    }
-    var arr []gcloudProject
-    if err := json.Unmarshal(out, &arr); err != nil {
-        return nil, fmt.Errorf("parse gcloud json failed: %v", err)
-    }
-    // filter ACTIVE
-    res := make([]gcloudProject, 0, len(arr))
-    for _, p := range arr {
-        if strings.EqualFold(p.LifecycleState, "ACTIVE") || p.LifecycleState == "" {
-            res = append(res, p)
-        }
-    }
-    return res, nil
+	if !hasCommand("gcloud") {
+		return nil, fmt.Errorf("gcloud not found")
+	}
+	out, err := exec.Command("gcloud", "projects", "list", "--format=json").CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("gcloud list failed: %v", err)
+	}
+	var arr []gcloudProject
+	if err := json.Unmarshal(out, &arr); err != nil {
+		return nil, fmt.Errorf("parse gcloud json failed: %v", err)
+	}
+	// filter ACTIVE
+	res := make([]gcloudProject, 0, len(arr))
+	for _, p := range arr {
+		if strings.EqualFold(p.LifecycleState, "ACTIVE") || p.LifecycleState == "" {
+			res = append(res, p)
+		}
+	}
+	return res, nil
 }
 
 // getGcloudProjectName returns the human-friendly project name via gcloud (best-effort)
 func getGcloudProjectName(projectID string) string {
-    if !hasCommand("gcloud") {
-        return ""
-    }
-    out, err := exec.Command("gcloud", "projects", "describe", projectID, "--format=json").CombinedOutput()
-    if err != nil || len(out) == 0 {
-        return ""
-    }
-    var m struct {
-        Name string `json:"name"`
-    }
-    if json.Unmarshal(out, &m) == nil {
-        return strings.TrimSpace(m.Name)
-    }
-    return ""
+	if !hasCommand("gcloud") {
+		return ""
+	}
+	out, err := exec.Command("gcloud", "projects", "describe", projectID, "--format=json").CombinedOutput()
+	if err != nil || len(out) == 0 {
+		return ""
+	}
+	var m struct {
+		Name string `json:"name"`
+	}
+	if json.Unmarshal(out, &m) == nil {
+		return strings.TrimSpace(m.Name)
+	}
+	return ""
 }
 
 // displayLabelForProject formats a project as "Name (projectId)" when name is available
 // It tries OAuth (Resource Manager) first, then gcloud, finally falls back to projectId only.
 func displayLabelForProject(projectID string) string {
-    id := strings.TrimSpace(projectID)
-    if id == "" { return "" }
-    // Try OAuth CRM lookup
-    if p, err := auth.GetProject(context.Background(), id); err == nil && p != nil {
-        name := strings.TrimSpace(firstNonEmpty(p.DisplayName, firstNonEmpty(p.Name, p.ProjectID)))
-        if name != "" && !strings.EqualFold(name, id) {
-            return fmt.Sprintf("%s (%s)", name, id)
-        }
-    }
-    // Fallback to gcloud
-    if name := getGcloudProjectName(id); name != "" && !strings.EqualFold(name, id) {
-        return fmt.Sprintf("%s (%s)", name, id)
-    }
-    return id
+	id := strings.TrimSpace(projectID)
+	if id == "" {
+		return ""
+	}
+	// Try OAuth CRM lookup
+	if p, err := auth.GetProject(context.Background(), id); err == nil && p != nil {
+		name := strings.TrimSpace(firstNonEmpty(p.DisplayName, firstNonEmpty(p.Name, p.ProjectID)))
+		if name != "" && !strings.EqualFold(name, id) {
+			return fmt.Sprintf("%s (%s)", name, id)
+		}
+	}
+	// Fallback to gcloud
+	if name := getGcloudProjectName(id); name != "" && !strings.EqualFold(name, id) {
+		return fmt.Sprintf("%s (%s)", name, id)
+	}
+	return id
 }
 
 // getGcloudAccount returns the current gcloud account email (best-effort)
 func getGcloudAccount() string {
-    if !hasCommand("gcloud") {
-        return ""
-    }
-    out, err := exec.Command("gcloud", "config", "get-value", "account").CombinedOutput()
-    if err != nil {
-        return ""
-    }
-    return strings.TrimSpace(string(out))
+	if !hasCommand("gcloud") {
+		return ""
+	}
+	out, err := exec.Command("gcloud", "config", "get-value", "account").CombinedOutput()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(out))
 }
 
 // ensureGcloudInstalled attempts to install Google Cloud SDK on supported OSes.
 // On macOS uses Homebrew; on Linux tries apt/yum if available; otherwise returns an error with guidance.
 func ensureGcloudInstalled() error {
-    if hasCommand("gcloud") {
-        return nil
-    }
-    switch runtime.GOOS {
-    case "darwin":
-        if hasCommand("brew") {
-            pterm.Info.Println("Installing gcloud via Homebrew (brew install --cask google-cloud-sdk)...")
-            if err := runCommandInteractive("brew", "install", "--cask", "google-cloud-sdk"); err != nil {
-                return fmt.Errorf("brew install failed: %w", err)
-            }
-        } else {
-            return fmt.Errorf("Homebrew not found. Install Homebrew (https://brew.sh) or install gcloud manually: https://cloud.google.com/sdk/docs/install")
-        }
-    case "linux":
-        if hasCommand("apt-get") {
-            pterm.Info.Println("Installing gcloud via apt-get...")
-            if err := runCommandInteractive("sudo", "apt-get", "update"); err != nil {
-                return fmt.Errorf("apt-get update failed: %w", err)
-            }
-            if err := runCommandInteractive("sudo", "apt-get", "install", "-y", "google-cloud-cli"); err != nil {
-                return fmt.Errorf("apt-get install failed: %w", err)
-            }
-        } else if hasCommand("yum") || hasCommand("dnf") {
-            mgr := "yum"
-            if hasCommand("dnf") { mgr = "dnf" }
-            pterm.Info.Printf("Installing gcloud via %s...\n", mgr)
-            if err := runCommandInteractive("sudo", mgr, "install", "-y", "google-cloud-cli"); err != nil {
-                return fmt.Errorf("%s install failed: %w", mgr, err)
-            }
-        } else {
-            return fmt.Errorf("unsupported Linux package manager; install gcloud manually: https://cloud.google.com/sdk/docs/install")
-        }
-    case "windows":
-        return fmt.Errorf("please install gcloud using winget or choco, then re-run: https://cloud.google.com/sdk/docs/install")
-    default:
-        return fmt.Errorf("unsupported OS for automatic installation; install gcloud manually: https://cloud.google.com/sdk/docs/install")
-    }
-    if !hasCommand("gcloud") {
-        return fmt.Errorf("gcloud still not found after installation")
-    }
-    return nil
+	if hasCommand("gcloud") {
+		return nil
+	}
+	switch runtime.GOOS {
+	case "darwin":
+		if hasCommand("brew") {
+			pterm.Info.Println("Installing gcloud via Homebrew (brew install --cask google-cloud-sdk)...")
+			if err := runCommandInteractive("brew", "install", "--cask", "google-cloud-sdk"); err != nil {
+				return fmt.Errorf("brew install failed: %w", err)
+			}
+		} else {
+			return fmt.Errorf("Homebrew not found. Install Homebrew (https://brew.sh) or install gcloud manually: https://cloud.google.com/sdk/docs/install")
+		}
+	case "linux":
+		if hasCommand("apt-get") {
+			pterm.Info.Println("Installing gcloud via apt-get...")
+			if err := runCommandInteractive("sudo", "apt-get", "update"); err != nil {
+				return fmt.Errorf("apt-get update failed: %w", err)
+			}
+			if err := runCommandInteractive("sudo", "apt-get", "install", "-y", "google-cloud-cli"); err != nil {
+				return fmt.Errorf("apt-get install failed: %w", err)
+			}
+		} else if hasCommand("yum") || hasCommand("dnf") {
+			mgr := "yum"
+			if hasCommand("dnf") {
+				mgr = "dnf"
+			}
+			pterm.Info.Printf("Installing gcloud via %s...\n", mgr)
+			if err := runCommandInteractive("sudo", mgr, "install", "-y", "google-cloud-cli"); err != nil {
+				return fmt.Errorf("%s install failed: %w", mgr, err)
+			}
+		} else {
+			return fmt.Errorf("unsupported Linux package manager; install gcloud manually: https://cloud.google.com/sdk/docs/install")
+		}
+	case "windows":
+		return fmt.Errorf("please install gcloud using winget or choco, then re-run: https://cloud.google.com/sdk/docs/install")
+	default:
+		return fmt.Errorf("unsupported OS for automatic installation; install gcloud manually: https://cloud.google.com/sdk/docs/install")
+	}
+	if !hasCommand("gcloud") {
+		return fmt.Errorf("gcloud still not found after installation")
+	}
+	return nil
 }

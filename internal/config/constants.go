@@ -116,9 +116,9 @@ const (
 	DefaultWindowsSystemDirWhitelist = "C:\\Windows\\System32;C:\\Windows;C:\\Windows\\SysWOW64;C:\\Program Files\\PowerShell\\7;C:\\Windows\\System32\\WindowsPowerShell\\v1.0"
 
 	// File permissions
-	DefaultDirPermissions  = 0755
-	DefaultFilePermissions = 0644
-	DefaultExecPermissions = 0755
+	DefaultDirPermissions  = 0o755
+	DefaultFilePermissions = 0o644
+	DefaultExecPermissions = 0o755
 
 	// Validation limits
 	MaxProviderNameLength = 50

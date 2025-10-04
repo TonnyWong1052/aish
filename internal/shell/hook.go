@@ -203,7 +203,7 @@ func addHookToFile(filePath, hookCode string) error {
 	}
 
 	// Write back to file
-	return os.WriteFile(filePath, []byte(contentStr), 0644)
+	return os.WriteFile(filePath, []byte(contentStr), 0o644)
 }
 
 // removeHookFromFile removes the hook code from a shell config file
@@ -243,7 +243,7 @@ func removeHookFromFile(filePath string) (bool, error) {
 	newContent := contentStr[:startIndex] + contentStr[endIndex+1:]
 
 	// Write back to file
-	if err := os.WriteFile(filePath, []byte(newContent), 0644); err != nil {
+	if err := os.WriteFile(filePath, []byte(newContent), 0o644); err != nil {
 		return false, err
 	}
 
@@ -259,7 +259,7 @@ func installWindowsHook() error {
 
 	// Ensure the directory for the profile exists.
 	profileDir := filepath.Dir(profilePath)
-	if err := os.MkdirAll(profileDir, 0755); err != nil {
+	if err := os.MkdirAll(profileDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create PowerShell profile directory: %w", err)
 	}
 

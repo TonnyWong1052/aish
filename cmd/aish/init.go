@@ -8,11 +8,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/pterm/pterm"
+	"github.com/spf13/cobra"
+
 	"github.com/TonnyWong1052/aish/internal/config"
 	"github.com/TonnyWong1052/aish/internal/shell"
 	"github.com/TonnyWong1052/aish/internal/ui"
-	"github.com/pterm/pterm"
-	"github.com/spf13/cobra"
 )
 
 var initCmd = &cobra.Command{

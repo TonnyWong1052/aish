@@ -158,8 +158,8 @@ func (rm *ResourceManager) ReleaseFileHandle() {
 
 // CreateResourcePool 創建資源池
 func (rm *ResourceManager) CreateResourcePool(name string, maxSize int,
-	factory func() (interface{}, error), cleanup func(interface{}) error) *ResourcePool {
-
+	factory func() (interface{}, error), cleanup func(interface{}) error,
+) *ResourcePool {
 	rm.mu.Lock()
 	defer rm.mu.Unlock()
 

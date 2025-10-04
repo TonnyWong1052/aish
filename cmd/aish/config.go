@@ -4,10 +4,6 @@ import (
 	"bufio"
 	"context"
 	"fmt"
-	"github.com/TonnyWong1052/aish/internal/config"
-	"github.com/TonnyWong1052/aish/internal/llm/openai"
-	"github.com/TonnyWong1052/aish/internal/prompt"
-	"github.com/TonnyWong1052/aish/internal/ui"
 	"os"
 	"strings"
 	"time"
@@ -15,6 +11,11 @@ import (
 	"github.com/pterm/pterm"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+
+	"github.com/TonnyWong1052/aish/internal/config"
+	"github.com/TonnyWong1052/aish/internal/llm/openai"
+	"github.com/TonnyWong1052/aish/internal/prompt"
+	"github.com/TonnyWong1052/aish/internal/ui"
 )
 
 var configCmd = &cobra.Command{
@@ -74,7 +75,7 @@ var configGetCmd = &cobra.Command{
 		case "user_preferences.language", "language":
 			fmt.Println(cfg.UserPreferences.Language)
 			return
-	case "auto_execute", "auto-execute", "user_preferences.auto_execute":
+		case "auto_execute", "auto-execute", "user_preferences.auto_execute":
 			if cfg.UserPreferences.AutoExecute {
 				fmt.Println("true")
 			} else {
@@ -291,17 +292,16 @@ func hideIfSet(v string) string {
 
 // revealOrNull shows the raw value when present; otherwise prints 'null'
 func revealOrNull(v string) string {
-    if strings.TrimSpace(v) == "" {
-        return "null"
-    }
-    return v
+	if strings.TrimSpace(v) == "" {
+		return "null"
+	}
+	return v
 }
 
 // isInteractiveTTY checks if in interactive TTY environment
 func isInteractiveTTY() bool {
 	return term.IsTerminal(int(os.Stdin.Fd())) && term.IsTerminal(int(os.Stdout.Fd()))
 }
-
 
 // plainConfigureWizard provides a plain text configuration flow that doesn't depend on TUI
 func plainConfigureWizard(cfg *config.Config) error {
@@ -425,7 +425,7 @@ func init() {
 	configCmd.AddCommand(configShowCmd)
 	configCmd.AddCommand(configGetCmd)
 	configCmd.AddCommand(configSetCmd)
-	
+
 	configCmd.Flags().Bool("interactive", false, "Use interactive TUI configuration wizard")
 	configCmd.Flags().Bool("from-init", false, "Internal flag for init command")
 	_ = configCmd.Flags().MarkHidden("from-init")

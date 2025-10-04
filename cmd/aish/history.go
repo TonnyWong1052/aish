@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/pterm/pterm"
+	"github.com/spf13/cobra"
+
 	"github.com/TonnyWong1052/aish/internal/config"
 	"github.com/TonnyWong1052/aish/internal/history"
 	"github.com/TonnyWong1052/aish/internal/llm"
 	"github.com/TonnyWong1052/aish/internal/ui"
-	"github.com/pterm/pterm"
-	"github.com/spf13/cobra"
 )
 
 // This is the new parent command for history
@@ -97,7 +98,6 @@ func listHistoryAndAnalyze(cmd *cobra.Command, args []string) {
 		Stderr:   selectedEntry.Stderr,
 		ExitCode: selectedEntry.ExitCode,
 	}, effectiveLanguage(cfg))
-
 	if err != nil {
 		presenter.StopLoading(false)
 		pterm.Error.Printfln("Failed to get suggestion: %v", err)
