@@ -6,15 +6,16 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/TonnyWong1052/aish/internal/config"
-	"github.com/TonnyWong1052/aish/internal/llm"
-	"github.com/TonnyWong1052/aish/internal/prompt"
 	"io"
 	"net/http"
+	"regexp"
 	"strings"
 	"text/template"
 	"time"
-	"regexp"
+
+	"github.com/TonnyWong1052/aish/internal/config"
+	"github.com/TonnyWong1052/aish/internal/llm"
+	"github.com/TonnyWong1052/aish/internal/prompt"
 )
 
 // OpenAI API structures
@@ -223,20 +224,20 @@ func (p *OpenAIProvider) GenerateCommand(ctx context.Context, promptText string,
 		return "", fmt.Errorf("OpenAI API request failed: %w", err)
 	}
 
-    // Prefer JSON output
-    cleaned := stripCodeFences(response)
-    var obj struct {
-        Command string `json:"command"`
-    }
-    if err := json.Unmarshal([]byte(cleaned), &obj); err == nil && strings.TrimSpace(obj.Command) != "" {
-        return strings.TrimSpace(obj.Command), nil
-    }
+	// Prefer JSON output
+	cleaned := stripCodeFences(response)
+	var obj struct {
+		Command string `json:"command"`
+	}
+	if err := json.Unmarshal([]byte(cleaned), &obj); err == nil && strings.TrimSpace(obj.Command) != "" {
+		return strings.TrimSpace(obj.Command), nil
+	}
 
-    // Fallback: extract plausible shell command; if not found, return empty to avoid executing prose
-    if cmd := extractPlausibleCommand(response); cmd != "" {
-        return cmd, nil
-    }
-    return "", fmt.Errorf("no plausible command found in provider response")
+	// Fallback: extract plausible shell command; if not found, return empty to avoid executing prose
+	if cmd := extractPlausibleCommand(response); cmd != "" {
+		return cmd, nil
+	}
+	return "", fmt.Errorf("no plausible command found in provider response")
 }
 
 // extractPlausibleCommand tries to extract a shell-like command from free-form text.
@@ -245,69 +246,69 @@ func (p *OpenAIProvider) GenerateCommand(ctx context.Context, promptText string,
 // 2) Otherwise scan lines and pick the first that looks like a command (regex heuristics).
 // 3) Reject obvious prose (e.g., contains phrases like "I am"/"I cannot answer").
 func extractPlausibleCommand(text string) string {
-    s := strings.TrimSpace(text)
-    if s == "" {
-        return ""
-    }
-    // Reject obvious prose answers
-    lower := strings.ToLower(s)
-    banned := []string{"i am", "i'm", "i cannot", "i can’t", "large language model", "sorry", "cannot answer", "i don't"}
-    for _, b := range banned {
-        if strings.Contains(lower, b) {
-            return ""
-        }
-    }
-    // Prefer fenced code blocks
-    if i := strings.LastIndex(s, "```"); i != -1 {
-        // find the matching opening fence
-        start := strings.LastIndex(s[:i], "```")
-        if start != -1 && start < i {
-            block := s[start+3 : i]
-            for _, line := range strings.Split(block, "\n") {
-                line = strings.TrimSpace(line)
-                if line == "" || strings.HasPrefix(line, "#") {
-                    continue
-                }
-                if plausibleCommand(line) {
-                    return line
-                }
-            }
-        }
-    }
-    // Scan lines
-    for _, line := range strings.Split(s, "\n") {
-        line = strings.TrimSpace(line)
-        if line == "" || strings.HasPrefix(line, "#") {
-            continue
-        }
-        if plausibleCommand(line) {
-            return line
-        }
-    }
-    return ""
+	s := strings.TrimSpace(text)
+	if s == "" {
+		return ""
+	}
+	// Reject obvious prose answers
+	lower := strings.ToLower(s)
+	banned := []string{"i am", "i'm", "i cannot", "i can’t", "large language model", "sorry", "cannot answer", "i don't"}
+	for _, b := range banned {
+		if strings.Contains(lower, b) {
+			return ""
+		}
+	}
+	// Prefer fenced code blocks
+	if i := strings.LastIndex(s, "```"); i != -1 {
+		// find the matching opening fence
+		start := strings.LastIndex(s[:i], "```")
+		if start != -1 && start < i {
+			block := s[start+3 : i]
+			for _, line := range strings.Split(block, "\n") {
+				line = strings.TrimSpace(line)
+				if line == "" || strings.HasPrefix(line, "#") {
+					continue
+				}
+				if plausibleCommand(line) {
+					return line
+				}
+			}
+		}
+	}
+	// Scan lines
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if plausibleCommand(line) {
+			return line
+		}
+	}
+	return ""
 }
 
-var cmdStartRe = regexp.MustCompile(`^(?i)\s*(sudo\s+)?([a-z][a-z0-9._-]*|\.|\.\.|\./|/|~)(\s|$)`) 
+var cmdStartRe = regexp.MustCompile(`^(?i)\s*(sudo\s+)?([a-z][a-z0-9._-]*|\.|\.\.|\./|/|~)(\s|$)`)
 
 func plausibleCommand(line string) bool {
-    l := strings.TrimSpace(line)
-    if l == "" {
-        return false
-    }
-    if strings.HasPrefix(l, "bash") {
-        l = strings.TrimSpace(strings.TrimPrefix(l, "bash"))
-        if l == "" {
-            return false
-        }
-    }
-    if !cmdStartRe.MatchString(l) {
-        return false
-    }
-    // Extra guard: avoid lines ending with a period that look like sentences
-    if strings.HasSuffix(l, ".") && !strings.ContainsAny(l, "/-'_\"$&|><") {
-        return false
-    }
-    return true
+	l := strings.TrimSpace(line)
+	if l == "" {
+		return false
+	}
+	if strings.HasPrefix(l, "bash") {
+		l = strings.TrimSpace(strings.TrimPrefix(l, "bash"))
+		if l == "" {
+			return false
+		}
+	}
+	if !cmdStartRe.MatchString(l) {
+		return false
+	}
+	// Extra guard: avoid lines ending with a period that look like sentences
+	if strings.HasSuffix(l, ".") && !strings.ContainsAny(l, "/-'_\"$&|><") {
+		return false
+	}
+	return true
 }
 
 // GetAvailableModels fetches all available models from the OpenAI API
