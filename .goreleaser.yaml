@@ -80,10 +80,10 @@ release:
   prerelease: false
   # Skip GitHub release for dev branch builds
   # This will prevent 403 errors when running locally or on dev branch
-  release_gitlab: false
-  release_gitea: false
   # Skip uploading assets that already exist
-  overwrite: false
+  # GoReleaser v2 使用 mode 控制既有發佈的處理方式，預設 append
+  # 若需覆蓋既有發佈，可將 mode 設為 replace
+  mode: append
 
 homebrew_casks:
   - name: aish
