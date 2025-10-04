@@ -27,7 +27,7 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.x'
+          go-version: '1.24.x'
           cache: true
 
       - name: 顯示 Go 版本
@@ -53,18 +53,46 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.x'
+          go-version: '1.24.x'
           cache: true
 
-      - name: 檢查 gofmt（必須零差異）
+      - name: 安裝格式化工具
+        run: |
+          go install mvdan.cc/gofumpt@latest
+          go install github.com/daixiang0/gci@latest
+          go install golang.org/x/tools/cmd/goimports@latest
+
+      - name: 檢查程式碼格式化（gofumpt + gci + goimports）
         shell: bash
         run: |
-          files=$(gofmt -s -l .)
+          echo "==> 檢查 gofumpt 格式化"
+          files=$(gofumpt -l .)
           if [[ -n "$files" ]]; then
-            echo "以下檔案未經 gofmt 處理："
+            echo "以下檔案未經 gofumpt 處理："
             echo "$files"
+            echo "請執行 'make fmt' 格式化程式碼"
             exit 1
           fi
+
+          echo "==> 檢查 gci import 排序"
+          files=$(gci check -s standard -s default -s "prefix(github.com/TonnyWong1052/aish)" .)
+          if [[ -n "$files" ]]; then
+            echo "以下檔案的 import 語句需要排序："
+            echo "$files"
+            echo "請執行 'make fmt' 格式化程式碼"
+            exit 1
+          fi
+
+          echo "==> 檢查 goimports"
+          files=$(goimports -l .)
+          if [[ -n "$files" ]]; then
+            echo "以下檔案的 import 語句需要整理："
+            echo "$files"
+            echo "請執行 'make fmt' 格式化程式碼"
+            exit 1
+          fi
+
+          echo "所有格式化檢查通過！"
 
       - name: go vet 基本檢查
         run: go vet ./...
@@ -80,7 +108,7 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.x'
+          go-version: '1.24.x'
           cache: true
 
       - name: 下載相依
@@ -132,7 +160,7 @@ jobs:
       - name: 安裝 Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.23.x'
+          go-version: '1.24.x'
           cache: true
 
       - name: 建置 CLI

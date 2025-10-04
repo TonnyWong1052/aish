@@ -297,9 +297,11 @@ func min(a, b int) int {
 // IsCircuitBreakerError 檢查是否為斷路器錯誤
 func IsCircuitBreakerError(err error) bool {
 	if aishErr, ok := GetAishError(err); ok {
+		// 使用字符串包含檢查，避免中文字符的字節索引問題
 		return aishErr.Code == ErrTimeout &&
 			len(aishErr.Message) > 0 &&
-			aishErr.Message[0:2] == "斷路器"
+			(aishErr.Message == "斷路器處於 OPEN 狀態，拒絕執行" ||
+				aishErr.Message == "斷路器處於 HALF_OPEN 狀態，拒絕執行")
 	}
 	return false
 }

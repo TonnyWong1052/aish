@@ -50,11 +50,11 @@ func createMockTokenFile(t *testing.T, content string) string {
 	t.Helper()
 	home := t.TempDir()
 	geminiDir := filepath.Join(home, ".gemini")
-	if err := os.MkdirAll(geminiDir, 0755); err != nil {
+	if err := os.MkdirAll(geminiDir, 0o755); err != nil {
 		t.Fatalf("Failed to create .gemini dir: %v", err)
 	}
 	tokenFile := filepath.Join(geminiDir, "oauth_creds.json")
-	if err := os.WriteFile(tokenFile, []byte(content), 0644); err != nil {
+	if err := os.WriteFile(tokenFile, []byte(content), 0o644); err != nil {
 		t.Fatalf("Failed to write token file: %v", err)
 	}
 	return home
@@ -85,6 +85,7 @@ func TestGeminiCLIProvider_GetSuggestion_Success(t *testing.T) {
 
 	home := createMockTokenFile(t, `{"access_token": "valid-token", "expiry_date": 9999999999999}`)
 	t.Setenv("HOME", home)
+	t.Setenv("AISH_GEMINI_PROJECT", "test-project")
 
 	provider, err := createTestProvider(mockServer.URL)
 	if err != nil {
@@ -128,6 +129,7 @@ func TestGeminiCLIProvider_GetSuggestion_AuthError(t *testing.T) {
 
 	home := createMockTokenFile(t, `{"access_token": "invalid-token"}`)
 	t.Setenv("HOME", home)
+	t.Setenv("AISH_GEMINI_PROJECT", "test-project")
 
 	provider, err := createTestProvider(mockServer.URL)
 	if err != nil {
@@ -172,7 +174,7 @@ func TestGeminiCLIProvider_GetSuggestion_TokenExpired(t *testing.T) {
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(response)
+		_ = json.NewEncoder(w).Encode(response)
 	}))
 	defer mockServer.Close()
 
@@ -197,10 +199,9 @@ func TestGeminiCLIProvider_GetSuggestion_TokenExpired(t *testing.T) {
 	// but it should fall back to the access_token file if oauth_creds.json is expired.
 	// Let's create a fallback token file.
 	fallbackTokenFile := filepath.Join(home, ".gemini", "access_token")
-	if err := os.WriteFile(fallbackTokenFile, []byte("expired-token"), 0644); err != nil {
+	if err := os.WriteFile(fallbackTokenFile, []byte("expired-token"), 0o644); err != nil {
 		t.Fatalf("Failed to write fallback token file: %v", err)
 	}
-
 
 	suggestion, err := provider.GetSuggestion(context.Background(), capturedContext, "en")
 	// Depending on the exact logic of token refresh/fallback, this might succeed or fail.
@@ -242,6 +243,7 @@ func TestGeminiCLIProvider_VerifyConnection_Success(t *testing.T) {
 
 	home := createMockTokenFile(t, `{"access_token": "valid-token", "expiry_date": 9999999999999}`)
 	t.Setenv("HOME", home)
+	t.Setenv("AISH_GEMINI_PROJECT", "test-project")
 
 	provider, err := createTestProvider(mockServer.URL)
 	if err != nil {
@@ -270,6 +272,7 @@ func TestGeminiCLIProvider_VerifyConnection_AuthError(t *testing.T) {
 
 	home := createMockTokenFile(t, `{"access_token": "expired-token"}`)
 	t.Setenv("HOME", home)
+	t.Setenv("AISH_GEMINI_PROJECT", "test-project")
 
 	provider, err := createTestProvider(mockServer.URL)
 	if err != nil {
@@ -313,7 +316,7 @@ func TestGeminiCLIProvider_getOAuthToken_MissingGeminiDir(t *testing.T) {
 func TestGeminiCLIProvider_getOAuthToken_MissingTokenFiles(t *testing.T) {
 	home := t.TempDir()
 	geminiDir := filepath.Join(home, ".gemini")
-	if err := os.MkdirAll(geminiDir, 0755); err != nil {
+	if err := os.MkdirAll(geminiDir, 0o755); err != nil {
 		t.Fatalf("Failed to create .gemini dir: %v", err)
 	}
 	t.Setenv("HOME", home)
@@ -463,12 +466,12 @@ func TestGeminiCLIProvider_getOAuthToken_PromptAndAuthenticateWebSuccess(t *test
 
 		// Simulate saving the tokens (copied from auth.saveTokens)
 		geminiDir := filepath.Join(tempHome, ".gemini")
-		if err := os.MkdirAll(geminiDir, 0755); err != nil {
+		if err := os.MkdirAll(geminiDir, 0o755); err != nil {
 			return fmt.Errorf("failed to create .gemini directory in mock: %w", err)
 		}
 
 		if expiresIn, ok := tokens["expires_in"].(float64); ok {
-			tokens["expiry_date"] = time.Now().Add(time.Duration(expiresIn)*time.Second).UnixMilli()
+			tokens["expiry_date"] = time.Now().Add(time.Duration(expiresIn) * time.Second).UnixMilli()
 		}
 
 		credsPath := filepath.Join(geminiDir, "oauth_creds.json")
@@ -476,13 +479,13 @@ func TestGeminiCLIProvider_getOAuthToken_PromptAndAuthenticateWebSuccess(t *test
 		if err != nil {
 			return fmt.Errorf("failed to marshal mock oauth_creds.json: %w", err)
 		}
-		if err := os.WriteFile(credsPath, credsData, 0600); err != nil {
+		if err := os.WriteFile(credsPath, credsData, 0o600); err != nil {
 			return fmt.Errorf("failed to write mock oauth_creds.json: %w", err)
 		}
 
 		accessTokenPath := filepath.Join(geminiDir, "access_token")
 		if accessToken, ok := tokens["access_token"].(string); ok {
-			if err := os.WriteFile(accessTokenPath, []byte(accessToken), 0600); err != nil {
+			if err := os.WriteFile(accessTokenPath, []byte(accessToken), 0o600); err != nil {
 				return fmt.Errorf("failed to write mock access_token: %w", err)
 			}
 		}

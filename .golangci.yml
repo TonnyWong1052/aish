@@ -1,0 +1,129 @@
+# golangci-lint configuration
+# https://golangci-lint.run/
+
+# 指定配置文件版本（兼容新版 golangci-lint）
+version: "2"
+
+output:
+  print-issued-lines: true
+  print-linter-name: false
+  sort-results: true
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    # 核心 linters
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - ineffassign
+    # 安全性
+    - gosec
+    # 代碼品質
+    - misspell
+    - unconvert
+    - goconst
+    - gocritic
+    - gocyclo
+    # 錯誤處理
+    - nilerr
+    - errname
+    - errorlint
+    # 完整性檢查
+    - exhaustive
+    # 性能優化
+    - prealloc
+    # 命名和風格
+    - predeclared
+    - forbidigo
+    - nakedret
+    # Context 使用
+    - noctx
+    # Lint 指令檢查
+    - nolintlint
+    # SQL/資源管理
+    - rowserrcheck
+    - sqlclosecheck
+    # 其他
+    - makezero
+    - maintidx
+    # depguard 暫時禁用，因為新版本配置複雜且專案不需要嚴格的 import 限制
+    # - depguard
+    - tparallel
+    - thelper
+    - unparam
+    - wrapcheck
+    - whitespace
+    # wsl 已被 wsl_v5 替代，暫時禁用
+    # - wsl
+
+linters-settings:
+  govet:
+    check-shadowing: true
+  errcheck:
+    check-type-assertions: true
+    check-blank-imports: false
+  staticcheck:
+    checks: ["all"]
+  unused:
+    check-exported: false
+  gosec:
+    excludes:
+      - G404
+      - G101
+      - G304
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - experimental
+      - opinionated
+    enabled-checks:
+      - dupImport
+      - import
+      - varcheck
+      - receiverNaming
+      - parameterNames
+      - commentFormatting
+      - ifElseChain
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+    ignore-tests: true
+  depguard:
+    rules:
+      # 允許所有 internal 和第三方套件
+      main:
+        deny:
+          - pkg: "io/ioutil"
+            desc: "use os and io packages instead"
+  wsl:
+    allow-multiline-assign: true
+
+issues:
+  exclude-use: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false
+
+severity:
+  default-severity: error
+  case-sensitive: false
+
+  exclude-rules:
+    - path: "^internal/"
+    - text: "SA9003: empty branch"
+    - text: "S1009: should omit nil check"
+    - text: "SA4006: this value of .* is never used"
+    - text: "Error return value of .* is not checked"
+
+  exclude-dirs:
+    - vendor
+    - testdata
+    - examples
+
+fix:
+  auto-fix: false

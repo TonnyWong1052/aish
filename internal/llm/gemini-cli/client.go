@@ -91,15 +91,13 @@ func init() {
 // 2) 若仍無，嘗試本機自動偵測（GCE/GKE Metadata 或 gcloud 目前設定）
 func (p *GeminiCLIProvider) ensureProject(ctx context.Context) error {
 	// 0) 最高優先：環境變數（允許使用者快速覆蓋）
+	// 環境變數設置時直接使用，不進行可訪問性檢查，因為這是用戶的明確意圖
 	if s := strings.TrimSpace(os.Getenv(config.EnvAISHGeminiProject)); s != "" {
 		p.cfg.Project = s
 		if shouldDebug() {
 			fmt.Fprintf(os.Stderr, "DEBUG aish/gemini-cli project_source=env value=%s\n", s)
 		}
-		// 可選驗證：若無法讀取，仍回退其他策略
-		if canAccessProject(ctx, s) {
-			return nil
-		}
+		return nil
 	}
 
 	// 1) 若已在設定中存在且非占位符，先嘗試此值
@@ -891,7 +889,6 @@ func (p *GeminiCLIProvider) generateContentCURL(ctx context.Context, message str
 		return txt, nil
 	}
 	return "", errors.New("invalid response format (curl)")
-
 }
 
 // parseTextFromAPIResponse parses API response structure, supports top-level or candidates structure wrapped under "response"

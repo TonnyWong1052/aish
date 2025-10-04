@@ -17,7 +17,7 @@ Thank you for your interest in contributing to AISH (AI Shell)! This document pr
 
 ### Prerequisites
 
-- **Go 1.23.0 or later**: Required for building AISH
+- **Go 1.24.1 or later**: Required for building AISH
 - **Git**: For version control
 - **Make**: For running build commands (optional but recommended)
 - **Docker**: For containerized testing (optional)
