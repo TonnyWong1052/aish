@@ -4,6 +4,13 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run release on'
+        required: false
+        default: 'dev'
+        type: string
 
 permissions:
   contents: write
