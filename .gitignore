@@ -7,7 +7,9 @@
 *.dll
 *.so
 *.dylib
+# Note: Match compiled test binaries, not source test files
 *.test
+!*_test.go
 *.out
 
 # Go module/package caches
