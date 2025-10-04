@@ -1,0 +1,21 @@
+# EditorConfig 有助於在不同編輯器/IDE 間維持一致風格
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.go]
+# Go 官方工具鏈以 Tab 縮排，交由 gofmt/gofumpt 決定寬度
+indent_style = tab
+indent_size = 4
+
+[Makefile]
+indent_style = tab
+
+[*.md]
+trim_trailing_whitespace = false

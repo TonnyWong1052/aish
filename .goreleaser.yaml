@@ -1,0 +1,108 @@
+version: 2
+project_name: aish
+
+before:
+  hooks:
+    - go mod tidy
+
+builds:
+  - id: aish
+    main: ./cmd/aish
+    env:
+      - CGO_ENABLED=0
+    ldflags:
+      - -s -w -X main._version={{.Version}}
+    goos:
+      - darwin
+      - linux
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - id: aish-archive
+    ids:
+      - aish
+    formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+
+# nfpm packages - for deb/rpm
+nfpms:
+  - id: aish-nfpms
+    ids:
+      - aish
+    formats:
+      - deb
+      - rpm
+    vendor: "TonnyWong1052"
+    homepage: "https://github.com/TonnyWong1052/aish"
+    maintainer: "TomLeung <leungchushing1@gmail.com>"
+    description: "AI shell helper."
+    license: "MIT"
+    bindir: /usr/local/bin
+    scripts:
+      postinstall: packaging/deb/postinstall.sh
+      preremove: packaging/deb/preremove.sh
+    contents:
+      - src: packaging/deb/README.Debian
+        dst: /usr/share/doc/aish/README.Debian
+        file_info:
+          mode: 0644
+    recommends:
+      - bash
+      - zsh
+      - fish
+
+# Custom publishers for GitHub Pages APT repository
+# publishers:
+#   - name: "upload-to-apt-repo"
+#     ids:
+#       - aish-nfpms
+#     cmd: |
+#       # This will be handled by a separate GitHub Action
+#       # that uploads the .deb files to the apt repository
+#       echo "Packages built successfully"
+
+changelog:
+  use: git
+  filters:
+    exclude:
+      - '^docs\('
+      - '^chore\('
+      - '^test\('
+
+release:
+  github:
+    owner: TonnyWong1052
+    name: aish
+  draft: false
+  prerelease: false
+  # Skip GitHub release for dev branch builds
+  # This will prevent 403 errors when running locally or on dev branch
+  # Skip uploading assets that already exist
+  # GoReleaser v2 使用 mode 控制既有發佈的處理方式，預設 append
+  # 若需覆蓋既有發佈，可將 mode 設為 replace
+  mode: append
+
+homebrew_casks:
+  - name: aish
+    repository:
+      owner: TonnyWong1052
+      name: homebrew-aish
+      branch: main
+    directory: Casks
+    commit_author:
+      name: aish-bot
+      email: releases@aish.local
+    homepage: https://github.com/TonnyWong1052/aish
+    description: AI shell helper
+    license: MIT
+    url:
+      verified: github.com/TonnyWong1052/aish
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/aish"]
+          end

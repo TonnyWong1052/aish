@@ -1,0 +1,126 @@
+name: Release and Update APT Repository
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches:
+      - "dev"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run release on'
+        required: false
+        default: 'dev'
+        type: string
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    outputs:
+      deb-file: ${{ steps.get-deb.outputs.deb-file }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: latest
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get DEB file name
+        id: get-deb
+        run: |
+          DEB_FILE=$(find dist/ -name "*.deb" | head -1 | xargs basename)
+          echo "deb-file=$DEB_FILE" >> $GITHUB_OUTPUT
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-package
+          path: dist/*.deb
+
+  update-apt-repo:
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout APT repository
+        uses: actions/checkout@v4
+        with:
+          repository: TonnyWong1052/aish-apt-repo
+          token: ${{ secrets.APT_REPO_TOKEN }}
+          path: apt-repo
+
+      - name: Download DEB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: debian-package
+          path: ./debs
+
+      - name: Install APT repository tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev apt-utils gnupg
+
+      - name: Setup GPG for signing
+        run: |
+          echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+          echo "${{ secrets.GPG_PASSPHRASE }}" | gpg --batch --yes --passphrase-fd 0 --pinentry-mode loopback --sign --armor --detach-sign --output /tmp/test.sig /dev/null
+
+      - name: Update APT repository
+        run: |
+          cd apt-repo
+          
+          # Create directories if they don't exist
+          mkdir -p pool/main/a/aish
+          mkdir -p dists/stable/main/binary-amd64
+          mkdir -p dists/stable/main/binary-arm64
+          
+          # Copy new .deb file
+          cp ../debs/*.deb pool/main/a/aish/
+          
+          # Generate Packages files per architecture
+          dpkg-scanpackages -a amd64 pool/ > dists/stable/main/binary-amd64/Packages
+          dpkg-scanpackages -a arm64 pool/ > dists/stable/main/binary-arm64/Packages
+          gzip -k dists/stable/main/binary-amd64/Packages
+          gzip -k dists/stable/main/binary-arm64/Packages
+          
+          # Generate Release file with apt-ftparchive (includes sizes + hashes)
+          cd dists/stable
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="aish" \
+            -o APT::FTPArchive::Release::Label="aish" \
+            -o APT::FTPArchive::Release::Suite="stable" \
+            -o APT::FTPArchive::Release::Codename="stable" \
+            -o APT::FTPArchive::Release::Architectures="amd64 arm64" \
+            -o APT::FTPArchive::Release::Components="main" \
+            -o APT::FTPArchive::Release::Description="aish APT repository" \
+            -o APT::FTPArchive::Release::SHA512="true" \
+            release . > Release
+          
+          # Sign Release file
+          if [ -n "${{ secrets.GPG_KEY_ID }}" ]; then KEY_OPT="--local-user ${{ secrets.GPG_KEY_ID }}"; else KEY_OPT=""; fi
+          gpg --batch --yes $KEY_OPT --passphrase "${{ secrets.GPG_PASSPHRASE }}" --pinentry-mode loopback --armor --detach-sign --output Release.gpg Release
+          gpg --batch --yes $KEY_OPT --passphrase "${{ secrets.GPG_PASSPHRASE }}" --pinentry-mode loopback --clearsign --output InRelease Release
+
+      - name: Commit and push changes
+        run: |
+          cd apt-repo
+          git config user.name "aish-bot"
+          git config user.email "releases@aish.local"
+          git add .
+          git commit -m "Update repository with ${{ needs.goreleaser.outputs.deb-file }}"
+          git push

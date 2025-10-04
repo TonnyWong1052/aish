@@ -1,0 +1,155 @@
+name: ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+# 並發控制：相同分支僅保留最新一次執行，避免重複占用資源
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: 程式靜態檢查（golangci-lint）
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取出程式碼
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 安裝 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: true
+
+      - name: 顯示 Go 版本
+        run: |
+          go version
+          go env
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m
+
+  fmt_vet:
+    name: 程式風格與基本檢查（gofmt/vet）
+    runs-on: ubuntu-latest
+    steps:
+      - name: 取出程式碼
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 安裝 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: true
+
+      - name: 檢查 gofmt（必須零差異）
+        shell: bash
+        run: |
+          files=$(gofmt -s -l .)
+          if [[ -n "$files" ]]; then
+            echo "以下檔案未經 gofmt 處理："
+            echo "$files"
+            exit 1
+          fi
+
+      - name: go vet 基本檢查
+        run: go vet ./...
+
+  test:
+    name: 單元測試與覆蓋率
+    runs-on: ubuntu-latest
+    needs: [lint, fmt_vet]
+    steps:
+      - name: 取出程式碼
+        uses: actions/checkout@v4
+
+      - name: 安裝 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: true
+
+      - name: 下載相依
+        run: go mod download
+
+      - name: 執行測試（含競態檢查與覆蓋率）
+        run: |
+          set -euo pipefail
+          go test ./... -race -covermode=atomic -coverprofile=coverage.out
+
+      - name: 覆蓋率門檻檢查（最低 60%）
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Coverage summary:" && go tool cover -func=coverage.out | tail -n 1 || true
+          MIN=60
+          ACTUAL=$(go tool cover -func=coverage.out | awk '/^total:/ { sub(/%/,"",$3); print $3 }')
+          if [[ -z "${ACTUAL:-}" ]]; then
+            echo "Failed to parse coverage from coverage.out"
+            exit 1
+          fi
+          PASS=$(awk -v a="$ACTUAL" -v m="$MIN" 'BEGIN { print (a+0 >= m+0) ? 1 : 0 }')
+          if [[ "$PASS" -ne 1 ]]; then
+            echo "Coverage ${ACTUAL}% is below target ${MIN}%"
+            exit 1
+          fi
+          echo "Coverage ${ACTUAL}% meets target ${MIN}%"
+
+      - name: 上傳覆蓋率檔案
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage.out
+          retention-days: 7
+
+  build:
+    name: 多平台編譯與產物保存
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - name: 取出程式碼
+        uses: actions/checkout@v4
+
+      - name: 安裝 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+          cache: true
+
+      - name: 建置 CLI
+        shell: bash
+        run: |
+          mkdir -p bin
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            go build -o bin/aish.exe ./cmd/aish
+          else
+            go build -o bin/aish ./cmd/aish
+          fi
+
+      - name: 上傳建置產物
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aish-${{ runner.os }}-${{ github.sha }}
+          path: |
+            bin/
+          retention-days: 7
