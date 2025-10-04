@@ -6,12 +6,13 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/TonnyWong1052/aish/internal/config"
-	"github.com/TonnyWong1052/aish/internal/llm"
-	"github.com/TonnyWong1052/aish/internal/prompt"
 	"github.com/firebase/genkit/go/genkit"
 	anthropicPlugin "github.com/firebase/genkit/go/plugins/compat_oai/anthropic"
 	"github.com/openai/openai-go/option"
+
+	"github.com/TonnyWong1052/aish/internal/config"
+	"github.com/TonnyWong1052/aish/internal/llm"
+	"github.com/TonnyWong1052/aish/internal/prompt"
 )
 
 // ClaudeProvider implements the llm.Provider interface using Genkit.
@@ -170,7 +171,7 @@ func (p *ClaudeProvider) VerifyConnection(ctx context.Context) ([]string, error)
 // Helper functions from original implementation
 func mapLanguage(lang string) string {
 	switch strings.ToLower(lang) {
-	case "chinese", "zh", "zh-TW", "zh-CN":
+	case "chinese", "zh", "zh-tw", "zh-cn":
 		return "zh-TW"
 	case "english", "en":
 		return "en"

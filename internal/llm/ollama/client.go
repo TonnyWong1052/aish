@@ -6,11 +6,12 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/firebase/genkit/go/genkit"
+	ollamaPlugin "github.com/firebase/genkit/go/plugins/ollama"
+
 	"github.com/TonnyWong1052/aish/internal/config"
 	"github.com/TonnyWong1052/aish/internal/llm"
 	"github.com/TonnyWong1052/aish/internal/prompt"
-	"github.com/firebase/genkit/go/genkit"
-	ollamaPlugin "github.com/firebase/genkit/go/plugins/ollama"
 )
 
 // OllamaProvider implements the llm.Provider interface using Genkit.
@@ -164,7 +165,7 @@ func (p *OllamaProvider) VerifyConnection(ctx context.Context) ([]string, error)
 // Helper functions
 func mapLanguage(lang string) string {
 	switch strings.ToLower(lang) {
-	case "chinese", "zh", "zh-TW", "zh-CN":
+	case "chinese", "zh", "zh-tw", "zh-cn":
 		return "zh-TW"
 	case "english", "en":
 		return "en"
