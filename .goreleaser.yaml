@@ -55,14 +55,14 @@ nfpms:
       - fish
 
 # Custom publishers for GitHub Pages APT repository
-publishers:
-  - name: "upload-to-apt-repo"
-    ids:
-      - aish-nfpms
-    cmd: |
-      # This will be handled by a separate GitHub Action
-      # that uploads the .deb files to the apt repository
-      echo "Packages built successfully"
+# publishers:
+#   - name: "upload-to-apt-repo"
+#     ids:
+#       - aish-nfpms
+#     cmd: |
+#       # This will be handled by a separate GitHub Action
+#       # that uploads the .deb files to the apt repository
+#       echo "Packages built successfully"
 
 changelog:
   use: git
