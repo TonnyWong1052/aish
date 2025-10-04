@@ -16,8 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/TonnyWong1052/aish/internal/config"
 	"github.com/google/uuid"
+
+	"github.com/TonnyWong1052/aish/internal/config"
 )
 
 const (
@@ -29,14 +30,12 @@ const (
 	TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
 )
 
-var (
-	// SCOPES are the required OAuth scopes for the application.
-	SCOPES = []string{
-		"https://www.googleapis.com/auth/cloud-platform",
-		"https://www.googleapis.com/auth/userinfo.email",
-		"https://www.googleapis.com/auth/userinfo.profile",
-	}
-)
+// SCOPES are the required OAuth scopes for the application.
+var SCOPES = []string{
+	"https://www.googleapis.com/auth/cloud-platform",
+	"https://www.googleapis.com/auth/userinfo.email",
+	"https://www.googleapis.com/auth/userinfo.profile",
+}
 
 // GenerateOAuthURL creates the Google OAuth 2.0 authorization URL.
 func GenerateOAuthURL(redirectPort int) (string, string, error) {
@@ -57,18 +56,18 @@ func GenerateOAuthURL(redirectPort int) (string, string, error) {
 
 // StartWebAuthFlow orchestrates the web-based OAuth 2.0 authorization flow.
 func StartWebAuthFlow(ctx context.Context) error {
-    // Channel to receive the authorization code from the callback server.
-    codeChan := make(chan string)
-    errChan := make(chan error)
+	// Channel to receive the authorization code from the callback server.
+	codeChan := make(chan string)
+	errChan := make(chan error)
 
-    // 1. Find an available port and start the local callback server.
-    port, err := findAvailablePort()
-    if err != nil {
-        return fmt.Errorf("failed to find an available port: %w", err)
-    }
-    server := &http.Server{Addr: fmt.Sprintf(":%d", port)}
+	// 1. Find an available port and start the local callback server.
+	port, err := findAvailablePort()
+	if err != nil {
+		return fmt.Errorf("failed to find an available port: %w", err)
+	}
+	server := &http.Server{Addr: fmt.Sprintf(":%d", port)}
 
-    go startCallbackServer(server, codeChan, errChan)
+	go startCallbackServer(server, codeChan, errChan)
 
 	// 2. Generate the OAuth URL.
 	authURL, _, err := GenerateOAuthURL(port)
@@ -82,59 +81,59 @@ func StartWebAuthFlow(ctx context.Context) error {
 		fmt.Fprintf(os.Stderr, "Failed to open browser automatically. Please open the URL manually.\n")
 	}
 
-    // 4. Wait for the authorization code or an error from the callback server.
-    select {
-    case code := <-codeChan:
-        // 5. Exchange the authorization code for an access token.
-        exchangeErr := exchangeCodeForToken(ctx, code, port)
-        // Ensure server is properly shut down after token exchange (short timeout)
-        shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-        defer cancel()
-        _ = server.Shutdown(shutdownCtx)
-        return exchangeErr
-    case err := <-errChan:
-        // Ensure server is properly shut down on error
-        shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-        defer cancel()
-        _ = server.Shutdown(shutdownCtx)
-        return err
-    case <-ctx.Done():
-        // Ensure server is properly shut down on context cancellation
-        shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-        defer cancel()
-        _ = server.Shutdown(shutdownCtx)
-        return ctx.Err()
-    }
+	// 4. Wait for the authorization code or an error from the callback server.
+	select {
+	case code := <-codeChan:
+		// 5. Exchange the authorization code for an access token.
+		exchangeErr := exchangeCodeForToken(ctx, code, port)
+		// Ensure server is properly shut down after token exchange (short timeout)
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+		return exchangeErr
+	case err := <-errChan:
+		// Ensure server is properly shut down on error
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+		return err
+	case <-ctx.Done():
+		// Ensure server is properly shut down on context cancellation
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+		return ctx.Err()
+	}
 }
 
 // startCallbackServer starts a local HTTP server to handle the OAuth 2.0 callback.
 func startCallbackServer(server *http.Server, codeChan chan<- string, errChan chan<- error) {
-    mux := http.NewServeMux()
-    mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-        // Get the authorization code from the query parameters.
-        code := r.URL.Query().Get("code")
-        if code == "" {
-            errMsg := "Authorization code not found in callback request."
-            http.Error(w, errMsg, http.StatusBadRequest)
-            errChan <- fmt.Errorf("%s", errMsg)
-            return
-        }
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// Get the authorization code from the query parameters.
+		code := r.URL.Query().Get("code")
+		if code == "" {
+			errMsg := "Authorization code not found in callback request."
+			http.Error(w, errMsg, http.StatusBadRequest)
+			errChan <- fmt.Errorf("%s", errMsg)
+			return
+		}
 
-        // Send a success message to the user's browser.
-        fmt.Fprintf(w, "OAuth authentication successful! You can close this window now.")
-        codeChan <- code
+		// Send a success message to the user's browser.
+		fmt.Fprintf(w, "OAuth authentication successful! You can close this window now.")
+		codeChan <- code
 
-        // Shutdown the server after sending the code
-        go func() {
-            time.Sleep(100 * time.Millisecond) // Give time for the response to be sent
-            _ = server.Shutdown(context.Background())
-        }()
-    })
+		// Shutdown the server after sending the code
+		go func() {
+			time.Sleep(100 * time.Millisecond) // Give time for the response to be sent
+			_ = server.Shutdown(context.Background())
+		}()
+	})
 
-    server.Handler = mux
-    if err := server.ListenAndServe(); err != http.ErrServerClosed {
-        errChan <- err
-    }
+	server.Handler = mux
+	if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		errChan <- err
+	}
 }
 
 // exchangeCodeForToken exchanges the authorization code for an access and refresh token.
@@ -200,7 +199,7 @@ func saveTokens(tokens map[string]interface{}) error {
 	}
 	configDir := filepath.Dir(configPath)
 
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
 		return fmt.Errorf("failed to create aish config directory: %w", err)
 	}
 
@@ -230,7 +229,7 @@ func saveTokens(tokens map[string]interface{}) error {
 	if err != nil {
 		return fmt.Errorf("failed to marshal gemini_oauth_creds.json: %w", err)
 	}
-	if err := os.WriteFile(credsPath, credsData, 0600); err != nil {
+	if err := os.WriteFile(credsPath, credsData, 0o600); err != nil {
 		return fmt.Errorf("failed to write gemini_oauth_creds.json: %w", err)
 	}
 

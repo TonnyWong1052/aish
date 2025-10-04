@@ -54,15 +54,15 @@ var (
 // shouldDebug controls whether to output debug information for Gemini auth flows.
 // Enabled when environment variable AISH_GEMINI_DEBUG is set to one of: 1, true, yes, debug
 func shouldDebug() bool {
-    v := strings.TrimSpace(strings.ToLower(os.Getenv("AISH_GEMINI_DEBUG")))
-    return v == "1" || v == "true" || v == "yes" || v == "debug"
+	v := strings.TrimSpace(strings.ToLower(os.Getenv("AISH_GEMINI_DEBUG")))
+	return v == "1" || v == "true" || v == "yes" || v == "debug"
 }
 
 // debugf writes formatted debug logs to stderr when shouldDebug is true.
 func debugf(format string, args ...any) {
-    if shouldDebug() {
-        fmt.Fprintf(os.Stderr, format, args...)
-    }
+	if shouldDebug() {
+		fmt.Fprintf(os.Stderr, format, args...)
+	}
 }
 
 // refreshThreshold returns the proactive refresh window. If the token will

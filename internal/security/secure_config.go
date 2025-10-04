@@ -51,7 +51,7 @@ func DefaultConfigSecurity() *ConfigSecurity {
 		RequireAuth:      false,
 		AutoSanitize:     true,
 		BackupOnChange:   true,
-		FilePermissions:  0600, // 僅用戶可讀寫
+		FilePermissions:  0o600, // 僅用戶可讀寫
 	}
 }
 
@@ -160,7 +160,7 @@ func (scm *SecureConfigManager) SaveSecureConfig(config *SecureConfig, filePath 
 	}
 
 	// 創建目錄
-	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -294,7 +294,7 @@ func (scm *SecureConfigManager) verifyFilePermissions(filePath string) error {
 
 	// 檢查是否對組和其他用戶可讀
 	if runtime.GOOS != "windows" {
-		if perm&0044 != 0 {
+		if perm&0o044 != 0 {
 			return fmt.Errorf("config file is readable by group or others (permissions: %o)", perm)
 		}
 	}
@@ -314,7 +314,7 @@ func (scm *SecureConfigManager) createBackup(filePath string) error {
 	}
 
 	backupPath := filePath + ".backup"
-	return os.WriteFile(backupPath, data, 0600)
+	return os.WriteFile(backupPath, data, 0o600)
 }
 
 // SecureGet 安全獲取配置值
