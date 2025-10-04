@@ -15,6 +15,7 @@
 .gomodcache/
 .gopath/
 vendor/
+.kilocode/
 
 # Project binaries
 bin/
@@ -65,3 +66,7 @@ profile.out
 *.bak
 tmp/
 tmp/**
+
+# AI files
+AGENTS.md
+CLAUDE.md
