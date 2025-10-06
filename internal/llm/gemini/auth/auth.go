@@ -80,25 +80,60 @@ func refreshThreshold() time.Duration {
 
 // EnsureValidToken is the main entry point. It checks the token's validity
 // using an efficient cache and delegates to `gemini-cli auth refresh` if necessary.
+// It now supports both AISH web auth credentials (~/.config/aish/gemini_oauth_creds.json)
+// and gemini-cli credentials (~/.gemini/oauth_creds.json), checking AISH credentials first.
 func EnsureValidToken(ctx context.Context) error {
-	mu.Lock()
-	defer mu.Unlock()
+	// 1. Try AISH web auth credentials first (priority)
+	aishCredsPath, err := getAishCredsPath()
+	if err == nil {
+		if _, statErr := os.Stat(aishCredsPath); statErr == nil {
+			// AISH credentials exist, try to refresh them
+			if err := ensureValidTokenForPath(ctx, aishCredsPath); err == nil {
+				return nil // AISH token refreshed successfully
+			}
+			// If AISH token refresh failed, log but continue to try gemini-cli path
+			debugf("auth: AISH token refresh failed (%v), falling back to gemini-cli path\n", err)
+		}
+	}
 
+	// 2. Fallback to gemini-cli credentials
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("auth: failed to get user home directory: %v", err)
 	}
 	credsPath := filepath.Join(homeDir, ".gemini", "oauth_creds.json")
 
-	// Check if the credentials file exists
-	info, err := os.Stat(credsPath)
-	if err != nil {
+	// Check if gemini-cli credentials exist
+	if _, err := os.Stat(credsPath); err != nil {
 		if os.IsNotExist(err) {
-			// If the file doesn't exist, we can't do anything.
-			// This is not an error, as the user might not be using a gemini-cli flow.
+			// Neither AISH nor gemini-cli credentials exist, not an error
 			return nil
 		}
 		return fmt.Errorf("auth: cannot stat oauth_creds.json: %v", err)
+	}
+
+	return ensureValidTokenForPath(ctx, credsPath)
+}
+
+// getAishCredsPath returns the path to AISH's OAuth credentials file
+func getAishCredsPath() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	// AISH config is typically at ~/.config/aish/gemini_oauth_creds.json
+	return filepath.Join(homeDir, ".config", "aish", "gemini_oauth_creds.json"), nil
+}
+
+// ensureValidTokenForPath checks and refreshes token for a specific credentials path
+func ensureValidTokenForPath(ctx context.Context, credsPath string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
+	// Check if the credentials file exists
+	info, err := os.Stat(credsPath)
+	if err != nil {
+		return fmt.Errorf("auth: cannot stat %s: %v", credsPath, err)
 	}
 
 	// If cache is valid (file hasn't changed), check expiry from cache

@@ -1,24 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-echo "[pre-commit] Formatting with gofumpt/gci/goimports (if available)..."
-if command -v gofumpt >/dev/null 2>&1; then
-  gofumpt -w .
-fi
-if command -v gci >/dev/null 2>&1; then
-  # Align with project module import grouping
-  gci write -s standard -s default -s "prefix(github.com/TonnyWong1052/aish)" -w .
-fi
-if command -v goimports >/dev/null 2>&1; then
-  goimports -w .
-fi
+echo "[pre-commit] Formatting staged Go files..."
 
-echo "[pre-commit] Checking gofmt diffs..."
-DIFFS=$(gofmt -s -l . || true)
-if [[ -n "$DIFFS" ]]; then
-  echo "The following files are not gofmt-simplified:" >&2
-  echo "$DIFFS" >&2
-  exit 1
+# Get a list of staged Go files
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$')
+
+if [[ -z "$STAGED_GO_FILES" ]]; then
+  echo "No Go files to format."
+else
+  # Format staged files
+  if command -v gofumpt >/dev/null 2>&1; then
+    echo "$STAGED_GO_FILES" | xargs gofumpt -w
+  fi
+  if command -v gci >/dev/null 2>&1; then
+    echo "$STAGED_GO_FILES" | xargs gci write -s standard -s default -s "prefix(github.com/TonnyWong1052/aish)"
+  fi
+  if command -v goimports >/dev/null 2>&1; then
+    echo "$STAGED_GO_FILES" | xargs goimports -w
+  fi
+  
+  # Re-add the formatted files to the staging area
+  echo "$STAGED_GO_FILES" | xargs git add
 fi
 
 if command -v golangci-lint >/dev/null 2>&1; then

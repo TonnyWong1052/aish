@@ -25,7 +25,7 @@ archives:
       - aish
     formats:
       - tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Timestamp }}_{{ .Os }}_{{ .Arch }}"
 
 # nfpm packages - for deb/rpm
 nfpms:
@@ -41,6 +41,7 @@ nfpms:
     description: "AI shell helper."
     license: "MIT"
     bindir: /usr/local/bin
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Timestamp }}_{{ .Os }}_{{ .Arch }}.{{ .Format }}"
     scripts:
       postinstall: packaging/deb/postinstall.sh
       preremove: packaging/deb/preremove.sh
@@ -71,6 +72,9 @@ changelog:
       - '^docs\('
       - '^chore\('
       - '^test\('
+
+checksum:
+  name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Timestamp }}_checksums.txt"
 
 release:
   github:

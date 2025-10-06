@@ -114,8 +114,9 @@ export AISH_CONFIG_DIR=~/.config/aish-dev
 # 一鍵格式化（gofumpt + gci + goimports）
 make fmt
 
-# 僅檢查 gofmt 差異（CI 也會執行，需為零差異）
-gofmt -s -l .
+# CI 會自動檢查格式，本地開發時，pre-commit hook 會自動格式化暫存的檔案。
+# 若需手動檢查，請執行：
+make ci
 ```
 
 2. **Run linting**：
@@ -484,8 +485,7 @@ func ClassifyError(exitCode int, stdout, stderr string) ErrorType {
 
 ```bash
 go test ./...
-golangci-lint run
-gofmt -s -l .
+make ci
 ```
 
 2. **Update documentation** if needed
