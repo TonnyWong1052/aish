@@ -4,8 +4,6 @@ on:
   push:
     tags:
       - "v*"
-    branches:
-      - "dev"
   workflow_dispatch:
     inputs:
       branch:
@@ -31,7 +29,7 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version: stable
+          go-version: '1.23.x'
 
       - uses: goreleaser/goreleaser-action@v6
         with:
@@ -52,6 +50,13 @@ jobs:
         with:
           name: debian-package
           path: dist/*.deb
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-package
+          path: dist/*.rpm
+          if-no-files-found: ignore
 
   update-apt-repo:
     needs: goreleaser

@@ -25,12 +25,14 @@ type Suggestion struct {
 
 // Presenter handles the standardized display of suggestions and user interaction.
 type Presenter struct {
-	spinner     *pterm.SpinnerPrinter
-	startTime   time.Time
-	mu          sync.Mutex
-	timerCancel context.CancelFunc
-	timerWG     sync.WaitGroup
-	ttyWriter   io.WriteCloser // 用於spinner輸出到/dev/tty,繞過stderr重定向
+	spinner        *pterm.SpinnerPrinter
+	animSpinner    *AnimatedSpinner // Race-free custom spinner
+	startTime      time.Time
+	mu             sync.Mutex
+	timerCancel    context.CancelFunc
+	timerWG        sync.WaitGroup
+	ttyWriter      io.WriteCloser // 用於spinner輸出到/dev/tty,繞過stderr重定向
+	useAnimSpinner bool           // Use AnimatedSpinner instead of pterm
 }
 
 // NewPresenter creates a new Presenter.
@@ -126,13 +128,16 @@ func (p *Presenter) ShowLoading(message string) {
 		p.timerWG.Wait()
 		p.timerCancel = nil
 	}
-	if p.spinner != nil {
-		// Silently stop old spinner to avoid SUCCESS/FAIL markers
-		_ = p.spinner.Stop()
-		p.spinner = nil
+
+	// Use AnimatedSpinner for race-free operation
+	if p.animSpinner != nil {
+		p.animSpinner.Stop(false)
+		p.animSpinner = nil
 	}
 
-	p.spinner, _ = pterm.DefaultSpinner.Start(message)
+	p.useAnimSpinner = true
+	p.animSpinner = NewAnimatedSpinner(message, StyleSpinner)
+	p.animSpinner.Start()
 }
 
 // StopLoading stops the spinner.
@@ -147,7 +152,12 @@ func (p *Presenter) StopLoading(success bool) {
 		p.timerCancel = nil
 	}
 
-	if p.spinner != nil {
+	if p.useAnimSpinner && p.animSpinner != nil {
+		// Use race-free AnimatedSpinner
+		p.animSpinner.Stop(success)
+		p.animSpinner = nil
+	} else if p.spinner != nil {
+		// Fallback to pterm spinner (used by ShowLoadingWithTimer)
 		if success {
 			// 顯示成功訊息(帶✓標記)
 			p.spinner.Success()
@@ -177,6 +187,8 @@ func (p *Presenter) StopLoading(success bool) {
 		p.ttyWriter.Close()
 		p.ttyWriter = nil
 	}
+
+	p.useAnimSpinner = false
 }
 
 // ShowLoadingWithTimer displays a spinner with a message and time counter.
@@ -261,8 +273,13 @@ func (p *Presenter) ShowLoadingWithTimer(baseMessage string) error {
 				// Update text only when seconds change to avoid redundant redraws
 				elapsedSec := int(time.Since(startAt).Seconds())
 				if elapsedSec != lastSec {
-					// Use non-blocking update to prevent deadlock
-					spinnerPtr.UpdateText(fmt.Sprintf("%s... (%ds)", label, elapsedSec))
+					// Acquire lock before checking spinner state
+					p.mu.Lock()
+					if p.spinner != nil && p.spinner == spinnerPtr {
+						// Use non-blocking update to prevent deadlock
+						spinnerPtr.UpdateText(fmt.Sprintf("%s... (%ds)", label, elapsedSec))
+					}
+					p.mu.Unlock()
 					lastSec = elapsedSec
 				}
 			}

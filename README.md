@@ -58,7 +58,64 @@ brew tap TonnyWong1052/aish
 brew install aish
 ```
 
-### 3. Using the Installation Script (Cross-platform)
+### 3. Using RPM (Fedora/RHEL/openSUSE)
+
+Grab the latest `.rpm` from the [GitHub Releases](https://github.com/TonnyWong1052/aish/releases) page and install it with your distro's package manager:
+
+```bash
+# x86_64 example
+curl -LO https://github.com/TonnyWong1052/aish/releases/download/<VERSION>/aish_<VERSION>_linux_amd64.rpm
+sudo rpm -ivh aish_<VERSION>_linux_amd64.rpm
+
+# aarch64 example
+curl -LO https://github.com/TonnyWong1052/aish/releases/download/<VERSION>/aish_<VERSION>_linux_arm64.rpm
+sudo rpm -ivh aish_<VERSION>_linux_arm64.rpm
+```
+
+For Fedora/RHEL family you can also use `dnf install ./aish_<VERSION>_linux_amd64.rpm` to handle dependencies automatically.
+
+### 4. Using the Arch User Repository (AUR)
+
+The release pipeline generates an `aish-bin` package script. Once published you can install it via your helper of choice:
+
+```bash
+yay -S aish-bin
+# or
+paru -S aish-bin
+```
+
+Maintainers can pick up the generated `PKGBUILD` from the release artifacts if manual submission to AUR is required.
+
+### 5. Using Scoop (Windows PowerShell)
+
+```powershell
+scoop bucket add aish https://github.com/TonnyWong1052/scoop-aish
+scoop install aish/aish
+```
+
+The manifest is generated on every release; `scoop update aish` will pull newer versions as soon as they are published.
+
+### 6. Using winget (Windows)
+
+```powershell
+winget install TonnyWong1052.aish
+```
+
+The WinGet manifest is uploaded alongside every tagged release. You can upgrade later via `winget upgrade TonnyWong1052.aish`.
+
+### 7. Using Nix Flake
+
+```bash
+# Install into your user profile
+nix profile install github:TonnyWong1052/aish
+
+# Or run without installing
+nix run github:TonnyWong1052/aish -- --help
+```
+
+打包維護者可透過 `nix build .#aish` 取得最新的 `vendorHash` 值，並在發佈前更新 flake。
+
+### 8. Using the Installation Script (Cross-platform)
 
 The script will build the binary, install it into `~/bin`, and provide instructions for adding it to your `PATH`.
 
@@ -74,7 +131,7 @@ cd aish
 ./scripts/install.sh --with-init
 ```
 
-### 4. Manual Installation
+### 9. Manual Installation
 
 If you prefer to build and install manually:
 

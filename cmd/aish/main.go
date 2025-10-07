@@ -539,6 +539,7 @@ func init() {
 	// rootCmd.AddCommand(askCmd)
 	rootCmd.AddCommand(historyCmd)
 	rootCmd.AddCommand(configCmd)
+	rootCmd.AddCommand(doctorCmd)
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(captureCmd)
 }

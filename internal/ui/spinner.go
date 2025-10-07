@@ -57,24 +57,31 @@ func (s *AnimatedSpinner) Start() {
 // Stop 停止動畫
 func (s *AnimatedSpinner) Stop(success bool) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	if !s.isRunning {
+		s.mu.Unlock()
 		return
 	}
 
+	// Cancel context while holding lock
 	s.cancel()
-	s.wg.Wait()
 	s.isRunning = false
+
+	// Copy values we need before unlocking
+	message := s.message
+	startTime := s.startTime
+	s.mu.Unlock()
+
+	// Wait for goroutine to finish (without holding the lock!)
+	s.wg.Wait()
 
 	// 清除當前行並顯示結果
 	fmt.Print("\r\033[K")
 
-	duration := time.Since(s.startTime)
+	duration := time.Since(startTime)
 	if success {
-		fmt.Printf("✅ %s (%.1fs)\n", s.message, duration.Seconds())
+		fmt.Printf("✅ %s (%.1fs)\n", message, duration.Seconds())
 	} else {
-		fmt.Printf("❌ %s failed (%.1fs)\n", s.message, duration.Seconds())
+		fmt.Printf("❌ %s failed (%.1fs)\n", message, duration.Seconds())
 	}
 }
 
@@ -101,12 +108,18 @@ func (s *AnimatedSpinner) animate() {
 // displayFrame 顯示動畫幀
 func (s *AnimatedSpinner) displayFrame(frame int) {
 	s.mu.RLock()
+	if !s.isRunning {
+		s.mu.RUnlock()
+		return
+	}
 	duration := time.Since(s.startTime)
+	message := s.message
+	style := s.style
 	s.mu.RUnlock()
 
 	var animation string
 
-	switch s.style {
+	switch style {
 	case StyleSpinner:
 		chars := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 		animation = chars[frame%len(chars)]
@@ -139,7 +152,7 @@ func (s *AnimatedSpinner) displayFrame(frame int) {
 	}
 
 	// 顯示動畫與時間計數
-	fmt.Printf("\r%s %s (%.1fs)", animation, s.message, duration.Seconds())
+	fmt.Printf("\r%s %s (%.1fs)", animation, message, duration.Seconds())
 }
 
 // IsRunning 檢查是否正在運行

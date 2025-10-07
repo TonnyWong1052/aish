@@ -73,20 +73,29 @@ func TestPresenterShowStopLoading(t *testing.T) {
 
 	// Test ShowLoading
 	presenter.ShowLoading("Testing loading")
-	if presenter.spinner == nil {
+	presenter.mu.Lock()
+	hasSpinner := presenter.animSpinner != nil
+	presenter.mu.Unlock()
+	if !hasSpinner {
 		t.Error("ShowLoading should initialize spinner")
 	}
 
 	// Test StopLoading with success
 	presenter.StopLoading(true)
-	if presenter.spinner != nil {
+	presenter.mu.Lock()
+	hasSpinner = presenter.animSpinner != nil
+	presenter.mu.Unlock()
+	if hasSpinner {
 		t.Error("StopLoading should reset spinner to nil")
 	}
 
 	// Test StopLoading with failure
 	presenter.ShowLoading("Testing failure")
 	presenter.StopLoading(false)
-	if presenter.spinner != nil {
+	presenter.mu.Lock()
+	hasSpinner = presenter.animSpinner != nil
+	presenter.mu.Unlock()
+	if hasSpinner {
 		t.Error("StopLoading should reset spinner to nil after failure")
 	}
 
@@ -99,10 +108,14 @@ func TestPresenterDoubleShowLoading(t *testing.T) {
 
 	// Test multiple ShowLoading calls
 	presenter.ShowLoading("First loading")
-	firstSpinner := presenter.spinner
+	presenter.mu.Lock()
+	firstSpinner := presenter.animSpinner
+	presenter.mu.Unlock()
 
 	presenter.ShowLoading("Second loading")
-	secondSpinner := presenter.spinner
+	presenter.mu.Lock()
+	secondSpinner := presenter.animSpinner
+	presenter.mu.Unlock()
 
 	// The spinner should be replaced/updated
 	if firstSpinner == nil || secondSpinner == nil {

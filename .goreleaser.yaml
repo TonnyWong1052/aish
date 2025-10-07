@@ -15,6 +15,7 @@ builds:
     goos:
       - darwin
       - linux
+      - windows
     goarch:
       - amd64
       - arm64
@@ -25,7 +26,13 @@ archives:
       - aish
     formats:
       - tar.gz
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Timestamp }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - src: LICENSE
+      - src: README.md
 
 # nfpm packages - for deb/rpm
 nfpms:
@@ -41,7 +48,7 @@ nfpms:
     description: "AI shell helper."
     license: "MIT"
     bindir: /usr/local/bin
-    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Timestamp }}_{{ .Os }}_{{ .Arch }}.{{ .Format }}"
+    file_name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}.{{ .Format }}"
     scripts:
       postinstall: packaging/deb/postinstall.sh
       preremove: packaging/deb/preremove.sh
@@ -110,3 +117,62 @@ homebrew_casks:
           if OS.mac?
             system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/aish"]
           end
+
+scoops:
+  - name: aish
+    bucket:
+      owner: TonnyWong1052
+      name: scoop-aish
+      branch: main
+    commit_author:
+      name: aish-bot
+      email: releases@aish.local
+    homepage: https://github.com/TonnyWong1052/aish
+    description: AI shell helper
+    license: MIT
+    url_template: "https://github.com/{{ .RepoOwner }}/{{ .RepoName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    post_install:
+      - "Write-Host 'Run \"aish init\" to configure shell integration after install.'"
+    skip_upload: true
+
+winget:
+  - name: aish
+    publisher: Tonny Wong
+    package_identifier: TonnyWong1052.aish
+    short_description: "AI shell assistant for diagnosing commands"
+    description: "AISH 提供終端機指令錯誤診斷、建議修正與自然語言指令生成功能。"
+    homepage: https://github.com/TonnyWong1052/aish
+    license: MIT
+    license_url: https://github.com/TonnyWong1052/aish/blob/main/LICENSE
+    publisher_url: https://github.com/TonnyWong1052/aish
+    publisher_support_url: https://github.com/TonnyWong1052/aish/issues
+    moniker: aish
+    tags:
+      - cli
+      - shell
+      - ai
+    commit_author:
+      name: aish-bot
+      email: releases@aish.local
+    url_template: "https://github.com/{{ .RepoOwner }}/{{ .RepoName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    skip_upload: true
+
+aurs:
+  - name: aish-bin
+    description: "AI shell helper that diagnoses failed commands and suggests fixes."
+    homepage: https://github.com/TonnyWong1052/aish
+    license: MIT
+    maintainers:
+      - "Tom Leung <leungchushing1@gmail.com>"
+    provides:
+      - aish
+    conflicts:
+      - aish
+    commit_author:
+      name: aish-bot
+      email: releases@aish.local
+    git_url: ""
+    skip_upload: true
+    package: |-
+      install -Dm755 "./aish" "${pkgdir}/usr/bin/aish"
+      install -Dm644 "./LICENSE" "${pkgdir}/usr/share/licenses/aish/LICENSE"
