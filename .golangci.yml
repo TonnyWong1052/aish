@@ -1,0 +1,61 @@
+# golangci-lint configuration
+# https://golangci-lint.run/
+
+version: "2"
+
+run:
+  timeout: 5m
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    # 核心 linters
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - ineffassign
+    # 安全性
+    - gosec
+    # 代碼品質
+    - misspell
+    - unconvert
+    - goconst
+    - gocritic
+    - gocyclo
+    # 錯誤處理
+    - nilerr
+    - errname
+    - errorlint
+    # 完整性檢查
+    - exhaustive
+    # 性能優化
+    - prealloc
+    # 命名和風格
+    - predeclared
+    - forbidigo
+    - nakedret
+    # Context 使用
+    - noctx
+    # Lint 指令檢查
+    - nolintlint
+    # SQL/資源管理
+    - rowserrcheck
+    - sqlclosecheck
+    # 其他
+    - makezero
+    - maintidx
+    # depguard 暫時禁用，因為新版本配置複雜且專案不需要嚴格的 import 限制
+    # - depguard
+    - tparallel
+    - thelper
+    - unparam
+    - wrapcheck
+    - whitespace
+    # wsl 已被 wsl_v5 替代，暫時禁用
+    # - wsl
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new: false

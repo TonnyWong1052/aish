@@ -1,0 +1,12 @@
+這是 aish 的 Debian/Ubuntu 套件附帶說明。
+
+安裝後建議執行：
+
+  aish init
+
+此指令會引導你設定偏好的 LLM 供應商（如 Gemini/OpenAI），並可選擇為 bash/zsh 安裝 shell hook，讓 aish 自動分析指令錯誤並給出修正建議。
+
+文件與支援：
+- 專案首頁與 README： https://github.com/TonnyWong1052/aish
+- 疑難排解： 套件內 /usr/share/doc/aish 或專案 docs/TROUBLESHOOTING.md
+

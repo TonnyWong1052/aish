@@ -1,0 +1,3 @@
+[submodule "homebrew-aish"]
+  path = homebrew-aish
+  url = https://github.com/TonnyWong1052/homebrew-aish.git

@@ -1,0 +1,354 @@
+name: Release and Update APT Repository
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to run release on'
+        required: false
+        default: 'dev'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    outputs:
+      deb-file: ${{ steps.get-deb.outputs.deb-file }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.x'
+
+      - uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: '~> v2.0'
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get DEB file name
+        id: get-deb
+        run: |
+          DEB_FILE=$(find dist/ -name "*.deb" | head -1 | xargs basename)
+          echo "deb-file=$DEB_FILE" >> $GITHUB_OUTPUT
+
+      - name: Upload DEB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debian-package
+          path: dist/*.deb
+
+      - name: Upload RPM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rpm-package
+          path: dist/*.rpm
+          if-no-files-found: ignore
+
+  update-apt-repo:
+    needs: goreleaser
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout APT repository
+        uses: actions/checkout@v4
+        with:
+          repository: TonnyWong1052/aish-apt-repo
+          token: ${{ secrets.APT_REPO_TOKEN }}
+          path: apt-repo
+
+      - name: Download DEB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: debian-package
+          path: ./debs
+
+      - name: Install APT repository tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg-dev apt-utils gnupg
+
+      - name: GPG Key Health Check
+        run: |
+          echo "🔍 Performing GPG key health check..."
+          
+          # 檢查必要的秘密變量
+          if [ -z "${{ secrets.GPG_PRIVATE_KEY }}" ]; then
+            echo "❌ GPG_PRIVATE_KEY secret is not set"
+            exit 1
+          fi
+          
+          if [ -z "${{ secrets.GPG_PASSPHRASE }}" ]; then
+            echo "❌ GPG_PASSPHRASE secret is not set"
+            exit 1
+          fi
+          
+          # 驗證 GPG 私鑰格式
+          if ! echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --show-keys --import-options show-only --quiet; then
+            echo "❌ GPG_PRIVATE_KEY format is invalid"
+            exit 1
+          fi
+          
+          echo "✅ GPG key health check passed"
+
+      - name: Setup and verify GPG for signing
+        id: setup-gpg
+        run: |
+          set -euo pipefail
+          
+          echo "🔐 Setting up GPG for package signing..."
+          
+          # 創建臨時目錄用於 GPG 操作
+          GNUPGHOME=$(mktemp -d)
+          export GNUPGHOME
+          chmod 700 "$GNUPGHOME"
+          
+          # 導入 GPG 私鑰
+          echo "📥 Importing GPG private key..."
+          if ! echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import --quiet; then
+            echo "❌ Failed to import GPG private key"
+            exit 1
+          fi
+          
+          # 驗證密鑰是否成功導入
+          echo "🔍 Verifying imported keys..."
+          if ! gpg --list-secret-keys --keyid-format LONG; then
+            echo "❌ No secret keys found after import"
+            exit 1
+          fi
+          
+          # 如果指定了 GPG_KEY_ID，驗證該密鑰是否存在
+          if [ -n "${{ secrets.GPG_KEY_ID }}" ]; then
+            echo "🔑 Verifying specific GPG key: ${{ secrets.GPG_KEY_ID }}"
+            if ! gpg --list-secret-keys --keyid-format LONG "${{ secrets.GPG_KEY_ID }}"; then
+              echo "❌ GPG key ${{ secrets.GPG_KEY_ID }} not found"
+              exit 1
+            fi
+            KEY_ID="${{ secrets.GPG_KEY_ID }}"
+          else
+            # 自動獲取第一個可用的私鑰 ID
+            KEY_ID=$(gpg --list-secret-keys --keyid-format LONG | grep -E "^sec" | head -1 | awk '{print $2}' | cut -d'/' -f2)
+            echo "🔑 Auto-detected GPG key: $KEY_ID"
+          fi
+          
+          # 驗證密鑰具有簽名能力
+          echo "✍️ Testing GPG signing capability..."
+          TEST_CONTENT="GPG signing test at $(date)"
+          echo "$TEST_CONTENT" | gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+            --pinentry-mode loopback --armor --detach-sign \
+            --local-user "$KEY_ID" --output /tmp/test.sig -
+          
+          if [ ! -f /tmp/test.sig ]; then
+            echo "❌ GPG signing test failed - no signature file created"
+            exit 1
+          fi
+          
+          # 驗證簽名
+          if ! echo "$TEST_CONTENT" | gpg --verify /tmp/test.sig - > /dev/null 2>&1; then
+            echo "❌ GPG signature verification failed"
+            exit 1
+          fi
+          
+          echo "✅ GPG setup and verification successful"
+          echo "🔑 Using key ID: $KEY_ID"
+          
+          # 將密鑰 ID 輸出供後續步驟使用
+          echo "gpg-key-id=$KEY_ID" >> $GITHUB_OUTPUT
+          
+          # 清理測試文件
+          rm -f /tmp/test.sig
+
+      - name: Verify DEB file integrity
+        run: |
+          echo "🔍 Verifying DEB file integrity..."
+          for deb in ./debs/*.deb; do
+            if [ ! -f "$deb" ]; then
+              echo "❌ No DEB files found"
+              exit 1
+            fi
+            
+            if ! dpkg-deb --info "$deb" > /dev/null 2>&1; then
+              echo "❌ Invalid DEB file: $deb"
+              exit 1
+            fi
+            
+            # Check file size
+            if [ $(stat -c%s "$deb") -lt 1000 ]; then
+              echo "❌ DEB file too small: $deb"
+              exit 1
+            fi
+            
+            echo "✅ DEB file verified: $(basename $deb)"
+          done
+
+      - name: Separate DEB files by architecture
+        run: |
+          echo "📦 Separating DEB files by architecture..."
+          mkdir -p ./debs/amd64 ./debs/arm64
+          
+          for deb in ./debs/*.deb; do
+            # Skip if it's a directory
+            [ -d "$deb" ] && continue
+            
+            arch=$(dpkg-deb --info "$deb" | grep "Architecture:" | awk '{print $2}')
+            case "$arch" in
+              amd64|x86_64)
+                echo "📋 Moving $(basename $deb) to amd64 directory"
+                mv "$deb" "./debs/amd64/"
+                ;;
+              arm64|aarch64)
+                echo "📋 Moving $(basename $deb) to arm64 directory"
+                mv "$deb" "./debs/arm64/"
+                ;;
+              *)
+                echo "⚠️ Unknown architecture $arch for $(basename $deb), skipping"
+                ;;
+            esac
+          done
+
+      - name: Update APT repository with verified GPG
+        run: |
+          set -euo pipefail
+          
+          cd apt-repo
+          
+          # 獲取之前設置的 GPG 密鑰 ID
+          GPG_KEY_ID="${{ steps.setup-gpg.outputs.gpg-key-id }}"
+          
+          echo "📦 Updating APT repository with verified GPG key: $GPG_KEY_ID"
+          
+          # 創建目錄結構
+          mkdir -p pool/main/a/aish
+          mkdir -p dists/stable/main/binary-amd64
+          mkdir -p dists/stable/main/binary-arm64
+          
+          # 複製 DEB 文件到正確的架構目錄
+          echo "📋 Copying DEB files to pool..."
+          if ls ../debs/amd64/*.deb 1> /dev/null 2>&1; then
+            cp ../debs/amd64/*.deb pool/main/a/aish/
+            echo "✅ Copied amd64 packages"
+          else
+            echo "⚠️ No amd64 packages found"
+          fi
+          
+          if ls ../debs/arm64/*.deb 1> /dev/null 2>&1; then
+            cp ../debs/arm64/*.deb pool/main/a/aish/
+            echo "✅ Copied arm64 packages"
+          else
+            echo "⚠️ No arm64 packages found"
+          fi
+          
+          # 生成 Packages 文件
+          echo "📋 Generating Packages files..."
+          if ls pool/main/a/aish/*amd64*.deb 1> /dev/null 2>&1; then
+            dpkg-scanpackages -a amd64 pool/ > dists/stable/main/binary-amd64/Packages
+            gzip -k dists/stable/main/binary-amd64/Packages
+            echo "✅ Generated amd64 Packages file"
+          else
+            echo "⚠️ No amd64 packages found, skipping Packages file generation"
+          fi
+          
+          if ls pool/main/a/aish/*arm64*.deb 1> /dev/null 2>&1; then
+            dpkg-scanpackages -a arm64 pool/ > dists/stable/main/binary-arm64/Packages
+            gzip -k dists/stable/main/binary-arm64/Packages
+            echo "✅ Generated arm64 Packages file"
+          else
+            echo "⚠️ No arm64 packages found, skipping Packages file generation"
+          fi
+          
+          # 生成 Release 文件
+          echo "📄 Generating Release file..."
+          cd dists/stable
+          apt-ftparchive \
+            -o APT::FTPArchive::Release::Origin="aish" \
+            -o APT::FTPArchive::Release::Label="aish" \
+            -o APT::FTPArchive::Release::Suite="stable" \
+            -o APT::FTPArchive::Release::Codename="stable" \
+            -o APT::FTPArchive::Release::Architectures="amd64 arm64" \
+            -o APT::FTPArchive::Release::Components="main" \
+            -o APT::FTPArchive::Release::Description="aish APT repository" \
+            -o APT::FTPArchive::Release::SHA512="true" \
+            release . > Release
+          
+          # 簽名 Release 文件（使用驗證過的 GPG 密鑰）
+          echo "✍️ Signing Release file..."
+          if ! gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+            --pinentry-mode loopback --armor --detach-sign \
+            --local-user "$GPG_KEY_ID" --output Release.gpg Release; then
+            echo "❌ Failed to sign Release file"
+            exit 1
+          fi
+          
+          if ! gpg --batch --yes --passphrase "${{ secrets.GPG_PASSPHRASE }}" \
+            --pinentry-mode loopback --clearsign \
+            --local-user "$GPG_KEY_ID" --output InRelease Release; then
+            echo "❌ Failed to create InRelease file"
+            exit 1
+          fi
+          
+          # 驗證簽名文件
+          echo "🔍 Verifying generated signatures..."
+          if ! gpg --verify Release.gpg Release > /dev/null 2>&1; then
+            echo "❌ Release.gpg signature verification failed"
+            exit 1
+          fi
+          
+          if ! gpg --verify InRelease > /dev/null 2>&1; then
+            echo "❌ InRelease signature verification failed"
+            exit 1
+          fi
+          
+          echo "✅ APT repository update and signing completed successfully"
+
+      - name: Validate APT repository
+        run: |
+          echo "🔍 Validating APT repository..."
+          cd apt-repo
+          
+          # Check Release file format
+          if ! grep -q "Origin: aish" dists/stable/Release; then
+            echo "❌ Release file format validation failed"
+            exit 1
+          fi
+          
+          # Verify GPG signatures
+          if ! gpg --verify dists/stable/Release.gpg dists/stable/Release > /dev/null 2>&1; then
+            echo "❌ GPG signature verification failed"
+            exit 1
+          fi
+          
+          # Check Packages files
+          for arch in amd64 arm64; do
+            if [ -f "dists/stable/main/binary-$arch/Packages" ]; then
+              echo "✅ Packages file for $arch found and valid"
+              # Check if Packages file has content
+              if [ -s "dists/stable/main/binary-$arch/Packages" ]; then
+                echo "✅ Packages file for $arch contains package data"
+              else
+                echo "⚠️ Packages file for $arch is empty"
+              fi
+            else
+              echo "⚠️ No packages found for architecture $arch"
+            fi
+          done
+          
+          echo "✅ APT repository validation completed"
+
+      - name: Commit and push changes
+        run: |
+          cd apt-repo
+          git config user.name "aish-bot"
+          git config user.email "releases@aish.local"
+          git add .
+          git commit -m "Update repository with ${{ needs.goreleaser.outputs.deb-file }}"
+          git push
