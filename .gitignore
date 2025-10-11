@@ -70,9 +70,9 @@ profile.out
 tmp/
 tmp/**
 
-# AI files
-AGENTS.md
-CLAUDE.md
+# AI files (removed - these are project documentation)
+# AGENTS.md
+# CLAUDE.md
 
 # GPG keys and sensitive files
 *.gpg
