@@ -19,7 +19,7 @@ func setupTestConfig(t *testing.T, cfg *config.Config) (cleanup func()) {
 	originalHome := os.Getenv("HOME")
 
 	// Set HOME to temp directory
-	os.Setenv("HOME", tmpHome)
+	require.NoError(t, os.Setenv("HOME", tmpHome))
 
 	// Create config directory
 	configDir := filepath.Join(tmpHome, config.DefaultConfigDir)
@@ -32,7 +32,7 @@ func setupTestConfig(t *testing.T, cfg *config.Config) (cleanup func()) {
 
 	// Return cleanup function
 	return func() {
-		os.Setenv("HOME", originalHome)
+		_ = os.Setenv("HOME", originalHome) // Best effort cleanup
 	}
 }
 

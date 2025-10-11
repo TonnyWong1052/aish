@@ -120,7 +120,7 @@ func TestCircuitBreaker_ExecuteWithFallback(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		cb.Execute(context.Background(), failingFn)
+		_ = cb.Execute(context.Background(), failingFn) // Intentionally ignoring error to trigger circuit breaker
 	}
 
 	fallbackCalled := false

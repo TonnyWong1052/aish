@@ -184,6 +184,8 @@ func TestResourceManager_ConcurrentMemoryRequests(t *testing.T) {
 
 	var wg sync.WaitGroup
 	successCount := 0
+	peakConcurrent := 0
+	currentConcurrent := 0
 	var mu sync.Mutex
 
 	// Multiple goroutines trying to request memory
@@ -195,8 +197,17 @@ func TestResourceManager_ConcurrentMemoryRequests(t *testing.T) {
 			if err == nil {
 				mu.Lock()
 				successCount++
+				currentConcurrent++
+				if currentConcurrent > peakConcurrent {
+					peakConcurrent = currentConcurrent
+				}
 				mu.Unlock()
+
 				time.Sleep(10 * time.Millisecond)
+
+				mu.Lock()
+				currentConcurrent--
+				mu.Unlock()
 				rm.ReleaseMemory(1024 * 1024)
 			}
 		}()
@@ -208,8 +219,10 @@ func TestResourceManager_ConcurrentMemoryRequests(t *testing.T) {
 		t.Error("At least some requests should succeed")
 	}
 
-	if successCount > 10 {
-		t.Error("Should not exceed memory limit")
+	// Check peak concurrent usage instead of total success count
+	// Since goroutines release memory, total successCount can exceed limit
+	if peakConcurrent > 10 {
+		t.Errorf("Peak concurrent usage %d should not exceed memory limit of 10", peakConcurrent)
 	}
 }
 

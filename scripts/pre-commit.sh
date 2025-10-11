@@ -5,6 +5,8 @@ echo "[pre-commit] Formatting staged Go files..."
 
 # Get a list of staged Go files
 STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$')
+# Detect Go module path for gci --local/prefix grouping (fallback to repo default)
+MODULE_PATH=$(go list -m 2>/dev/null || echo github.com/TonnyWong1052/aish)
 
 if [[ -z "$STAGED_GO_FILES" ]]; then
   echo "No Go files to format."
@@ -14,7 +16,14 @@ else
     echo "$STAGED_GO_FILES" | xargs gofumpt -w
   fi
   if command -v gci >/dev/null 2>&1; then
-    echo "$STAGED_GO_FILES" | xargs gci write -s standard -s default -s "prefix(github.com/TonnyWong1052/aish)"
+    # 在不同版本的 gci 之間做兼容：
+    # - 舊版本使用子命令 write 並支持 -s/--section
+    # - 另一分支僅支持 -w/--local 形式（無 -s）
+    if gci write --help >/dev/null 2>&1; then
+      echo "$STAGED_GO_FILES" | xargs gci write -s standard -s default -s "prefix(${MODULE_PATH})"
+    else
+      echo "$STAGED_GO_FILES" | xargs gci -w --local "${MODULE_PATH}"
+    fi
   fi
   if command -v goimports >/dev/null 2>&1; then
     echo "$STAGED_GO_FILES" | xargs goimports -w

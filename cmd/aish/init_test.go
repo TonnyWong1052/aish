@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIsInteractiveTTY(t *testing.T) {
@@ -13,9 +14,14 @@ func TestIsInteractiveTTY(t *testing.T) {
 	defer func() { os.Stdin = oldStdin }()
 
 	// Create a pipe to simulate non-TTY stdin
-	r, w, _ := os.Pipe()
-	defer r.Close()
-	defer w.Close()
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+	defer func() {
+		_ = r.Close() // Best effort cleanup
+	}()
+	defer func() {
+		_ = w.Close() // Best effort cleanup
+	}()
 	os.Stdin = r
 
 	result := isInteractiveTTY()

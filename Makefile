@@ -34,7 +34,16 @@ tools:
 ## Apply formatting (no semantic rewrite)
 fmt:
 	@[ -x "$$(which gofumpt 2>/dev/null)" ] && gofumpt -w . || echo "gofumpt not found; skip"
-	@[ -x "$$(which gci 2>/dev/null)" ] && gci write -s standard -s default -s "prefix($(MODULE))" -w . || echo "gci not found; skip"
+	@# 兼容不同 CLI 風格的 gci：若支持子命令 write 則使用 -s 分節；否則退回 --local 參數
+	@if [ -x "$$(which gci 2>/dev/null)" ]; then \
+		if gci write --help >/dev/null 2>&1; then \
+			gci write -s standard -s default -s "prefix($(MODULE))" .; \
+		else \
+			gci -w --local "$(MODULE)" .; \
+		fi; \
+	else \
+		echo "gci not found; skip"; \
+	fi
 	@[ -x "$$(which goimports 2>/dev/null)" ] && goimports -w . || echo "goimports not found; skip"
 
 ## Run configured linters per .golangci.yml (formatting focused)

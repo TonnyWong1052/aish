@@ -42,9 +42,13 @@ linters:
     # SQL/資源管理
     - rowserrcheck
     - sqlclosecheck
+    - bodyclose  # HTTP response body closing
     # 其他
     - makezero
     - maintidx
+    # exportloopref 已在 golangci-lint v2.x 移除（Go 1.22+ 已修復迴圈變數作用域問題）
+    - gocognit       # Cognitive complexity
+    - nestif         # Deeply nested if statements
     # depguard 暫時禁用，因為新版本配置複雜且專案不需要嚴格的 import 限制
     # - depguard
     - tparallel

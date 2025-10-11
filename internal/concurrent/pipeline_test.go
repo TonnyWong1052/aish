@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewPipeline(t *testing.T) {
@@ -154,7 +156,8 @@ func TestPipeline_GetStats(t *testing.T) {
 
 	// Process a few items
 	for i := 0; i < 3; i++ {
-		pipeline.Process(context.Background(), i)
+		_, err := pipeline.Process(context.Background(), i)
+		require.NoError(t, err)
 	}
 
 	stats := pipeline.GetStats()
@@ -258,7 +261,8 @@ func TestPipeline_StageStats(t *testing.T) {
 
 	// Process multiple times
 	for i := 0; i < 5; i++ {
-		pipeline.Process(context.Background(), i)
+		_, err := pipeline.Process(context.Background(), i)
+		require.NoError(t, err)
 	}
 
 	stats := pipeline.GetStats()

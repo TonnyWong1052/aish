@@ -22,23 +22,14 @@ builds:
 
 archives:
   - id: aish-archive
-    ids:
-      - aish
-    formats:
-      - tar.gz
-    format_overrides:
-      - goos: windows
-        format: zip
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
-      - src: LICENSE
-      - src: README.md
+      - LICENSE
+      - README.md
 
 # nfpm packages - for deb/rpm
 nfpms:
   - id: aish-nfpms
-    ids:
-      - aish
     formats:
       - deb
       - rpm
@@ -96,31 +87,26 @@ release:
   # 若需覆蓋既有發佈，可將 mode 設為 replace
   mode: append
 
-homebrew_casks:
-  - name: aish
-    repository:
+brews:
+  - repository:
       owner: TonnyWong1052
       name: homebrew-aish
       branch: main
-    directory: Casks
+    # 建議以 Formula 目錄提交 Homebrew 公式
+    directory: Formula
     commit_author:
       name: aish-bot
       email: releases@aish.local
     homepage: https://github.com/TonnyWong1052/aish
     description: AI shell helper
     license: MIT
-    url:
-      verified: github.com/TonnyWong1052/aish
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "#{staged_path}/aish"]
-          end
+    # 以 formula 形式安裝二進位；如需純 Cask 特性請改用自定 cask workflow
+    install: |
+      bin.install "aish"
 
 scoops:
   - name: aish
-    bucket:
+    repository:
       owner: TonnyWong1052
       name: scoop-aish
       branch: main
@@ -146,7 +132,6 @@ winget:
     license_url: https://github.com/TonnyWong1052/aish/blob/main/LICENSE
     publisher_url: https://github.com/TonnyWong1052/aish
     publisher_support_url: https://github.com/TonnyWong1052/aish/issues
-    moniker: aish
     tags:
       - cli
       - shell

@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewEnhancer(t *testing.T) {
@@ -44,23 +46,25 @@ func TestDetectShellType(t *testing.T) {
 
 	// Test with zsh
 	oldShell := os.Getenv("SHELL")
-	defer os.Setenv("SHELL", oldShell)
+	defer func() {
+		_ = os.Setenv("SHELL", oldShell) // Best effort cleanup
+	}()
 
-	os.Setenv("SHELL", "/bin/zsh")
+	require.NoError(t, os.Setenv("SHELL", "/bin/zsh"))
 	shellType := enhancer.detectShellType()
 	if shellType != "zsh" {
 		t.Errorf("Expected zsh, got %s", shellType)
 	}
 
 	// Test with bash
-	os.Setenv("SHELL", "/bin/bash")
+	require.NoError(t, os.Setenv("SHELL", "/bin/bash"))
 	shellType = enhancer.detectShellType()
 	if shellType != "bash" {
 		t.Errorf("Expected bash, got %s", shellType)
 	}
 
 	// Test with unknown shell
-	os.Setenv("SHELL", "/bin/fish")
+	require.NoError(t, os.Setenv("SHELL", "/bin/fish"))
 	shellType = enhancer.detectShellType()
 	if shellType != "unknown" {
 		t.Errorf("Expected unknown, got %s", shellType)
@@ -101,7 +105,9 @@ func TestGetDirectoryListing(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() {
+		_ = os.RemoveAll(tmpDir) // Best effort cleanup
+	}()
 
 	// Create test files
 	testFiles := []string{"file1.txt", "file2.go", "subdir"}
@@ -204,7 +210,9 @@ func TestReadHistoryFromFile_ZshFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name()) // Best effort cleanup
+	}()
 
 	historyContent := `: 1640995200:0;ls -la
 : 1640995210:0;cd project
@@ -238,7 +246,9 @@ func TestReadHistoryFromFile_BashFormat(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp file: %v", err)
 	}
-	defer os.Remove(tmpFile.Name())
+	defer func() {
+		_ = os.Remove(tmpFile.Name()) // Best effort cleanup
+	}()
 
 	historyContent := `ls -la
 cd project

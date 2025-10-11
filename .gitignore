@@ -73,3 +73,23 @@ tmp/**
 # AI files
 AGENTS.md
 CLAUDE.md
+
+# GPG keys and sensitive files
+*.gpg
+*.asc
+private_key*
+public_key*
+*.pem
+*.key
+*.crt
+
+# Test data directories
+path/to/data/
+
+# Temporary GPG files
+/tmp/test.sig
+/tmp/gpg-*
+
+# GitHub credential files
+.github/.credentials
+*.credentials.json

@@ -581,7 +581,7 @@ func init() {
 	// Enable debug mode (affects all subcommands)
 	rootCmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
 		if flagDebug {
-			os.Setenv(config.EnvAISHDebug, "1")
+			_ = os.Setenv(config.EnvAISHDebug, "1") // Ignore error, debug flag is best-effort
 		}
 	}
 }

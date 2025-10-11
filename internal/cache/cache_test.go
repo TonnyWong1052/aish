@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewCache(t *testing.T) {
@@ -486,9 +488,9 @@ func TestCache_Cleanup(t *testing.T) {
 	}
 
 	// Add some entries with short TTL
-	cache.Set("expire1", "val1", 50*time.Millisecond)
-	cache.Set("expire2", "val2", 50*time.Millisecond)
-	cache.Set("keep", "val3", time.Hour)
+	require.NoError(t, cache.Set("expire1", "val1", 50*time.Millisecond))
+	require.NoError(t, cache.Set("expire2", "val2", 50*time.Millisecond))
+	require.NoError(t, cache.Set("keep", "val3", time.Hour))
 
 	// Wait for expiration
 	time.Sleep(100 * time.Millisecond)
@@ -532,8 +534,8 @@ func TestCache_CloseAndReload(t *testing.T) {
 		t.Fatalf("Failed to create cache: %v", err)
 	}
 
-	cache1.Set("persistent1", "value1", time.Hour)
-	cache1.Set("persistent2", "value2", time.Hour)
+	require.NoError(t, cache1.Set("persistent1", "value1", time.Hour))
+	require.NoError(t, cache1.Set("persistent2", "value2", time.Hour))
 
 	// Close cache
 	err = cache1.Close()
@@ -546,7 +548,9 @@ func TestCache_CloseAndReload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create second cache: %v", err)
 	}
-	defer cache2.Close()
+	defer func() {
+		_ = cache2.Close() // Best effort cleanup
+	}()
 
 	// Verify entries are loaded
 	val, found := cache2.Get("persistent1")

@@ -240,7 +240,7 @@ func (c *Cache) Clear() error {
 	// 刪除所有緩存文件
 	for hashedKey := range c.index {
 		cacheFile := filepath.Join(c.config.CacheDir, hashedKey)
-		os.Remove(cacheFile)
+		_ = os.Remove(cacheFile) // Best effort, continue clearing other files
 	}
 
 	// 清空索引

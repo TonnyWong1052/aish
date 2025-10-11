@@ -101,11 +101,14 @@ func Init(config Config) error {
 			return fmt.Errorf("failed to setup file output: %w", err)
 		}
 	case "both":
-		// Output to both console and file
-		if err := setupFileOutput(logger, config); err != nil {
+		// Output to both console and file using MultiWriter
+		file, err := openLogFile(config)
+		if err != nil {
 			return fmt.Errorf("failed to setup file output: %w", err)
 		}
-		// TODO: Implement multiple outputs (requires additional packages or custom implementation)
+		logFile = file
+		multiWriter := newMultiWriter(os.Stdout, file)
+		logger.SetOutput(multiWriter)
 	default:
 		return fmt.Errorf("invalid log output: %s", config.Output)
 	}
@@ -119,16 +122,26 @@ func Init(config Config) error {
 	return nil
 }
 
-// setupFileOutput sets up file output
-func setupFileOutput(logger *logrus.Logger, config Config) error {
+// openLogFile opens log file for writing
+func openLogFile(config Config) (*os.File, error) {
 	// Ensure log directory exists
 	logDir := filepath.Dir(config.LogFile)
 	if err := os.MkdirAll(logDir, 0o755); err != nil {
-		return err
+		return nil, err
 	}
 
 	// Open log file
 	file, err := os.OpenFile(config.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o666)
+	if err != nil {
+		return nil, err
+	}
+
+	return file, nil
+}
+
+// setupFileOutput sets up file output
+func setupFileOutput(logger *logrus.Logger, config Config) error {
+	file, err := openLogFile(config)
 	if err != nil {
 		return err
 	}
@@ -136,6 +149,31 @@ func setupFileOutput(logger *logrus.Logger, config Config) error {
 	logFile = file
 	logger.SetOutput(file)
 	return nil
+}
+
+// multiWriter implements io.Writer that writes to multiple outputs
+type multiWriter struct {
+	writers []interface{ Write([]byte) (int, error) }
+}
+
+// newMultiWriter creates a new multiWriter
+func newMultiWriter(writers ...interface{ Write([]byte) (int, error) }) *multiWriter {
+	return &multiWriter{writers: writers}
+}
+
+// Write implements io.Writer interface
+func (mw *multiWriter) Write(p []byte) (n int, err error) {
+	for _, w := range mw.writers {
+		n, err = w.Write(p)
+		if err != nil {
+			return n, err
+		}
+		if n != len(p) {
+			err = fmt.Errorf("short write")
+			return n, err
+		}
+	}
+	return len(p), nil
 }
 
 // GetLogger gets global logger instance

@@ -113,7 +113,9 @@ func (e *ContextEnhancer) readHistoryFromFile(filePath string) ([]string, error)
 		// 如果文件不存在，嘗試使用 history 命令
 		return e.getHistoryFromCommand()
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close() // Best effort close on read operation
+	}()
 
 	var commands []string
 	var allCommands []string
