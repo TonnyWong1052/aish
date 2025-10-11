@@ -116,7 +116,7 @@ scoops:
     homepage: https://github.com/TonnyWong1052/aish
     description: AI shell helper
     license: MIT
-    url_template: "https://github.com/{{ .RepoOwner }}/{{ .RepoName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    url_template: "https://github.com/TonnyWong1052/aish/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     post_install:
       - "Write-Host 'Run \"aish init\" to configure shell integration after install.'"
     skip_upload: true
@@ -139,7 +139,7 @@ winget:
     commit_author:
       name: aish-bot
       email: releases@aish.local
-    url_template: "https://github.com/{{ .RepoOwner }}/{{ .RepoName }}/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
+    url_template: "https://github.com/TonnyWong1052/aish/releases/download/{{ .Tag }}/{{ .ArtifactName }}"
     skip_upload: true
 
 aurs:
