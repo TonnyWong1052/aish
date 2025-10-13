@@ -14,9 +14,9 @@ require (
 	github.com/pterm/pterm v0.12.81
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.1
-	github.com/stretchr/testify v1.10.0
-	golang.org/x/crypto v0.40.0
-	golang.org/x/term v0.33.0
+	github.com/stretchr/testify v1.11.1
+	golang.org/x/crypto v0.43.0
+	golang.org/x/term v0.36.0
 )
 
 require (
@@ -68,8 +68,8 @@ require (
 	go.opentelemetry.io/otel/metric v1.36.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.36.0 // indirect
 	go.opentelemetry.io/otel/trace v1.36.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
