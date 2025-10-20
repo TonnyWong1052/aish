@@ -8,15 +8,15 @@ require (
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
-	github.com/firebase/genkit/go v1.0.5
+	github.com/firebase/genkit/go v1.1.0
 	github.com/google/uuid v1.6.0
 	github.com/openai/openai-go v1.12.0
-	github.com/pterm/pterm v0.12.81
+	github.com/pterm/pterm v0.12.82
 	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/cobra v1.10.1
-	github.com/stretchr/testify v1.10.0
-	golang.org/x/crypto v0.40.0
-	golang.org/x/term v0.33.0
+	github.com/stretchr/testify v1.11.1
+	golang.org/x/crypto v0.43.0
+	golang.org/x/term v0.36.0
 )
 
 require (
@@ -35,7 +35,7 @@ require (
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/goccy/go-yaml v1.17.1 // indirect
-	github.com/google/dotprompt/go v0.0.0-20250923103342-a8a91d1dff59 // indirect
+	github.com/google/dotprompt/go v0.0.0-20251014011017-8d056e027254 // indirect
 	github.com/gookit/color v1.5.4 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/invopop/jsonschema v0.13.0 // indirect
@@ -68,8 +68,8 @@ require (
 	go.opentelemetry.io/otel/metric v1.36.0 // indirect
 	go.opentelemetry.io/otel/sdk v1.36.0 // indirect
 	go.opentelemetry.io/otel/trace v1.36.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.27.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
