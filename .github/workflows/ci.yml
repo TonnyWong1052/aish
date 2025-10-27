@@ -135,7 +135,7 @@ jobs:
 
       - name: 上傳覆蓋率檔案
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: coverage
           path: coverage.out
@@ -171,7 +171,7 @@ jobs:
 
       - name: 上傳建置產物
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: aish-${{ runner.os }}-${{ github.sha }}
           path: |
