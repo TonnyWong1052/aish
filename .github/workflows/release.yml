@@ -68,7 +68,7 @@ jobs:
           path: apt-repo
 
       - name: Download DEB artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: debian-package
           path: ./debs
